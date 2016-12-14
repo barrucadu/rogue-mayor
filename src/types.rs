@@ -2,6 +2,7 @@
 //! their own modules.
 
 use constants::*;
+use mobiles::Mobile;
 use std::collections::BTreeMap;
 use std::fmt::{Debug, Error, Formatter};
 
@@ -13,28 +14,18 @@ pub enum MapTag {
 /// A location in 2d space.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Point {
-    x: usize,
-    y: usize,
-}
-
-/// Things which roam around in the world, like people and monsters.
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub struct Mobile {
-}
-
-impl Mobile {
-    /// Do a turn.
-    pub fn step(&self,
-                _: Point,
-                _: &mut BTreeMap<Point, Mobile>,
-                _: &mut BTreeMap<MapTag, Map>,
-                _: &mut World) {
-    }
+    /// The X coordinate.
+    pub x: usize,
+    /// The Y coordnate.
+    pub y: usize,
 }
 
 /// A heatmap.
 #[derive(Copy)]
-pub struct Map([[usize; WIDTH]; HEIGHT]);
+pub struct Map {
+    pub approach: [[usize; WIDTH]; HEIGHT],
+    pub flee: [[usize; WIDTH]; HEIGHT],
+}
 
 impl Clone for Map {
     fn clone(&self) -> Map {
@@ -43,11 +34,12 @@ impl Clone for Map {
 
     // Overwrite the provided array, rather than allocate a new one.
     fn clone_from(&mut self, source: &Map) {
-        let Map(me) = *source;
-        let Map(mut out) = *self;
+        let Map { approach: me_approach, flee: me_flee } = *source;
+        let Map { approach: mut out_approach, flee: mut out_flee } = *self;
         for y in 0..HEIGHT {
             for x in 0..WIDTH {
-                out[y][x] = me[y][x];
+                out_approach[y][x] = me_approach[y][x];
+                out_flee[y][x] = me_flee[y][x];
             }
         }
     }
@@ -55,22 +47,32 @@ impl Clone for Map {
 
 impl Debug for Map {
     fn fmt(&self, formatter: &mut Formatter) -> Result<(), Error> {
-        let Map(me) = *self;
-        let mut has_prior = false;
+        fn debug_array(formatter: &mut Formatter,
+                       arr: [[usize; WIDTH]; HEIGHT])
+                       -> Result<(), Error> {
+            let mut has_prior = false;
 
-        try!(write!(formatter, "["));
-        for row in me.iter() {
-            // Prepend a comma if this isn't the first entry.
-            if has_prior {
-                try!(write!(formatter, ","));
-            } else {
-                has_prior = true;
+            try!(write!(formatter, "["));
+            for row in arr.iter() {
+                // Prepend a comma if this isn't the first entry.
+                if has_prior {
+                    try!(write!(formatter, ","));
+                } else {
+                    has_prior = true;
+                }
+
+                // Output a single row.
+                try!(formatter.debug_list().entries(row.iter()).finish());
             }
-
-            // Output a single row.
-            try!(formatter.debug_list().entries(row.iter()).finish());
+            write!(formatter, "]")
         }
-        write!(formatter, "]")
+
+        let Map { approach: approach, flee: flee } = *self;
+        try!(write!(formatter, "("));
+        try!(debug_array(formatter, approach));
+        try!(write!(formatter, ","));
+        try!(debug_array(formatter, flee));
+        try!(write!(formatter, ")"));
     }
 }
 
