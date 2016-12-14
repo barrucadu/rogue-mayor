@@ -1,0 +1,11 @@
+[package]
+name        = "rogue-mayor"
+version     = "0.1.0"
+authors     = ["Michael Walker <mike@barrucadu.co.uk>"]
+description = "A roguelike town management game of economical/political intrigue."
+homepage    = "https://github.com/barrucadu/rogue-mayor"
+repository  = "https://github.com/barrucadu/rogue-mayor.git"
+readme      = "README.markdown"
+license     = "MIT"
+
+[dependencies]
