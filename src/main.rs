@@ -37,7 +37,7 @@ fn main() {
         mobs = new_mobs;
 
         // Prompt for user input.
-        let action = input();
+        let action = ui.input();
 
         // Perform the user action.
         match action {
@@ -51,9 +51,4 @@ fn main() {
         // Finally, render.
         ui.render(&mobs, &maps, &world);
     }
-}
-
-/// Wait for a command from the user.
-pub fn input() -> Command {
-    Command::Quit
 }

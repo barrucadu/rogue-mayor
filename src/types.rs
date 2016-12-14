@@ -97,6 +97,9 @@ impl World {
 pub trait UI {
     /// Render
     fn render(&mut self, &BTreeMap<Point, Mobile>, &BTreeMap<MapTag, Map>, &World);
+
+    /// Await input.
+    fn input(&self) -> Command;
 }
 
 /// A basic user interface.
@@ -105,4 +108,7 @@ pub struct BasicUI {}
 
 impl UI for BasicUI {
     fn render(&mut self, _: &BTreeMap<Point, Mobile>, _: &BTreeMap<MapTag, Map>, _: &World) {}
+    fn input(&self) -> Command {
+        Command::Quit
+    }
 }
