@@ -5,6 +5,7 @@
         unused_results)]
 
 pub mod constants;
+pub mod dijkstra_map;
 pub mod mobiles;
 pub mod types;
 pub mod utils;

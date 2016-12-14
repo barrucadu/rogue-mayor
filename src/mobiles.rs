@@ -2,6 +2,7 @@
 //! fall into this class.
 
 use constants::*;
+use dijkstra_map::*;
 use std::collections::BTreeMap;
 use std::f64;
 use types::*;
@@ -10,6 +11,10 @@ use utils::*;
 /// Things which roam around in the world, like people and monsters.
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct Mobile {
+    /// If the mob is especially brave or not. At the moment this only leads to greater risk-taking
+    /// when fleeing something.
+    pub brave: bool,
+
     /// Things this mob cares about, and the relative weightings it assigns to each.
     pub desires: BTreeMap<MapTag, f64>,
 }
@@ -48,6 +53,10 @@ impl Mobile {
 
     /// The heatmap AI: a very simple AI based on hill-climbing (or descending, rather). If there
     /// are multiple possible choices, pick the first considered.
+    ///
+    /// See:
+    /// - http://www.roguebasin.com/index.php?title=The_Incredible_Power_of_Dijkstra_Maps
+    /// - http://www.roguebasin.com/index.php?title=Dijkstra_Maps_Visualized
     fn heatmap_ai(&self, pos: Point, maps: &BTreeMap<MapTag, Map>) -> Point {
         // Find the minimum weighted sum of all the heatmaps in the local area:
         let mut new_pos = pos;
@@ -67,8 +76,16 @@ impl Mobile {
                 let mut weight_here = 0.0;
                 for (tag, weight) in &self.desires {
                     let w: f64 = *weight;
-                    if let Some(&Map { approach, flee }) = maps.get(tag) {
-                        let delta = if w > 0.0 { approach[y][x] } else { flee[y][x] };
+                    if let Some(&Map { approach, flee_cowardly, flee_bravely }) = maps.get(tag) {
+                        let delta = if w > 0.0 {
+                            approach[y][x]
+                        } else {
+                            if self.brave {
+                                flee_bravely[y][x]
+                            } else {
+                                flee_cowardly[y][x]
+                            }
+                        };
                         weight_here += w * delta as f64;
                     } else {
                         panic!("MapTag '{:?}' is missing, got: {:?}", tag, maps);

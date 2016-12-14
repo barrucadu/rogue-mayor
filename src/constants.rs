@@ -5,3 +5,9 @@ pub const WIDTH: usize = 500;
 
 /// The height of the playable map.
 pub const HEIGHT: usize = 300;
+
+/// The dijkstra map fleeing coefficient for cowards.
+pub const COWARDICE_COEFF: f64 = -1.1;
+
+/// The dijksra map fleeing coefficient for brave souls.
+pub const BRAVERY_COEFF: f64 = -1.6;
