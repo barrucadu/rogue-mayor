@@ -9,10 +9,16 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
+use sdl2::render::TextureQuery;
 use std::collections::BTreeMap;
 use std::f64;
+use std::path::Path;
 use types::*;
 use ui::UI;
+
+// The font
+const FONT_PATH: &'static str = "font/Anonymous Pro.ttf";
+const FONT_SIZE: u16 = 24;
 
 // Size of the visible viewport, in grid cells.
 const VIEWPORT_CELL_HEIGHT: usize = 100;
@@ -23,10 +29,22 @@ const CELL_PIXEL_HEIGHT: usize = 8;
 const CELL_PIXEL_WIDTH: usize = 8;
 
 // Size of margins around viewport.
-const MARGIN_PIXEL_TOP: usize = 0;
+const MARGIN_PIXEL_TOP: usize = 80;
 const MARGIN_PIXEL_LEFT: usize = 0;
 const MARGIN_PIXEL_BOTTOM: usize = 0;
 const MARGIN_PIXEL_RIGHT: usize = 0;
+
+// Number of log entries to fit in the top margin.
+const LOG_ENTRIES_VISIBLE: usize = 3;
+
+// Some helpful derived stuff
+const SCREEN_WIDTH: u32 = (MARGIN_PIXEL_LEFT + MARGIN_PIXEL_BOTTOM +
+                           CELL_PIXEL_WIDTH * VIEWPORT_CELL_WIDTH) as u32;
+const SCREEN_HEIGHT: u32 =
+    (MARGIN_PIXEL_TOP + MARGIN_PIXEL_BOTTOM + CELL_PIXEL_HEIGHT * VIEWPORT_CELL_HEIGHT) as u32;
+const CONTENT_WIDTH: u32 = SCREEN_WIDTH - MARGIN_PIXEL_LEFT as u32 - MARGIN_PIXEL_RIGHT as u32;
+const CONTENT_HEIGHT: u32 = SCREEN_HEIGHT - MARGIN_PIXEL_TOP as u32 - MARGIN_PIXEL_BOTTOM as u32;
+const LOG_ENTRY_HEIGHT: u32 = (MARGIN_PIXEL_TOP / LOG_ENTRIES_VISIBLE) as u32;
 
 /// A user interface using SDL2.
 #[allow(missing_debug_implementations,missing_copy_implementations)]
@@ -41,6 +59,8 @@ pub struct SdlUI {
     video: sdl2::VideoSubsystem,
     /// The renderer
     renderer: sdl2::render::Renderer<'static>,
+    /// The TTF context.
+    ttf: sdl2::ttf::Sdl2TtfContext,
     /// Debugging display: the heatmap to render.
     active_heatmap: Option<(Style, MapTag)>,
 }
@@ -62,11 +82,7 @@ impl SdlUI {
         let context = try!(sdl2::init());
         let events = try!(context.event_pump());
         let video = try!(context.video());
-        let window = match video.window("Rogue Mayor",
-                    (MARGIN_PIXEL_LEFT + MARGIN_PIXEL_BOTTOM +
-                     CELL_PIXEL_WIDTH * VIEWPORT_CELL_WIDTH) as u32,
-                    (MARGIN_PIXEL_TOP + MARGIN_PIXEL_BOTTOM +
-                     CELL_PIXEL_HEIGHT * VIEWPORT_CELL_HEIGHT) as u32)
+        let window = match video.window("Rogue Mayor", SCREEN_WIDTH, SCREEN_HEIGHT)
             .position_centered()
             .opengl()
             .build() {
@@ -77,6 +93,10 @@ impl SdlUI {
             Ok(ren) => ren,
             Err(e) => return Err(format!("{}", e)),
         };
+        let ttf = match sdl2::ttf::init() {
+            Ok(ttf) => ttf,
+            Err(e) => return Err(format!("{}", e)),
+        };
 
         Ok(SdlUI {
             viewport: Point { x: 0, y: 0 },
@@ -84,6 +104,7 @@ impl SdlUI {
             events: events,
             video: video,
             renderer: renderer,
+            ttf: ttf,
             active_heatmap: None,
         })
     }
@@ -110,6 +131,28 @@ impl UI for SdlUI {
     fn render(&mut self, _: &BTreeMap<Point, Mobile>, maps: &Maps, world: &World) {
         self.renderer.set_draw_color(Color::RGB(0, 0, 0));
         self.renderer.clear();
+
+        // Render the message log
+        let font = self.ttf.load_font(Path::new(FONT_PATH), FONT_SIZE).unwrap();
+
+        let mut done = 0;
+        for msg in world.messages.iter().take(LOG_ENTRIES_VISIBLE) {
+            let surface = font.render(msg.msg.as_str())
+                .blended(Color::RGB(255, 255, 255))
+                .unwrap();
+            let mut texture = self.renderer.create_texture_from_surface(&surface).unwrap();
+
+            let TextureQuery { width, height, .. } = texture.query();
+
+            let rect = Rect::new(MARGIN_PIXEL_LEFT as i32,
+                                 ((LOG_ENTRIES_VISIBLE - done - 1) as u32 *
+                                  LOG_ENTRY_HEIGHT) as i32,
+                                 width,
+                                 height);
+
+            let _ = self.renderer.copy(&mut texture, None, Some(rect));
+            done += 1;
+        }
 
         match self.active_heatmap {
             Some((style, tag)) => {

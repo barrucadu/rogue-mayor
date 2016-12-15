@@ -72,6 +72,12 @@ fn main() {
                         Command::Skip | Command::Render => {}
                         Command::Quit => break 'game,
                     }
+
+                    // Testing the message log.
+                    world.log(Message {
+                        msg: format!("You chose {:?}", action).to_string(),
+                        loc: None,
+                    });
                 }
 
                 // Step the world state.
