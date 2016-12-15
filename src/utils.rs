@@ -9,12 +9,12 @@ use types::*;
 /// or ascending.
 pub fn inclusive_range(from: i8, to: i8) -> Vec<i8> {
     let mut out = Vec::new();
-    let range = from.abs() as usize - to.abs() as usize + 1;
+    let range = 1 + if from < to { to - from } else { from - to };
     for i in 0..range {
         if from > to {
-            out.push(from - i as i8);
+            out.push(from - i);
         } else {
-            out.push(from + i as i8);
+            out.push(from + i);
         }
     }
     out
