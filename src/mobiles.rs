@@ -76,14 +76,14 @@ impl Mobile {
                 let mut weight_here = 0.0;
                 for (tag, weight) in &self.desires {
                     let w: f64 = *weight;
-                    if let Some(&Map { approach, flee_cowardly, flee_bravely }) = maps.get(tag) {
+                    if let Some(ref map) = maps.get(tag) {
                         let delta = if w > 0.0 {
-                            approach[y][x]
+                            map.approach[y][x]
                         } else {
                             if self.brave {
-                                flee_bravely[y][x]
+                                map.flee_bravely[y][x]
                             } else {
-                                flee_cowardly[y][x]
+                                map.flee_cowardly[y][x]
                             }
                         };
                         weight_here += w * delta;

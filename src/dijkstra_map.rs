@@ -19,8 +19,9 @@ pub enum MapTag {
 }
 
 /// A Dijkstra map, or heatmap.
-#[derive(Copy)]
 pub struct Map {
+    /// The sources (the global minima of the approach map).
+    pub sources: Vec<Point>,
     /// Dijkstra map for approaching.
     pub approach: [[f64; WIDTH]; HEIGHT],
     /// Dijkstra map for fleeing, where the fleeing creature in question is not willing to take many
@@ -35,19 +36,24 @@ pub struct Map {
 
 impl Clone for Map {
     fn clone(&self) -> Map {
-        *self
+        let mut out = Map {
+            sources: self.sources.clone(),
+            approach: [[0.0; WIDTH]; HEIGHT],
+            flee_cowardly: [[0.0; WIDTH]; HEIGHT],
+            flee_bravely: [[0.0; WIDTH]; HEIGHT],
+        };
+        out.clone_from(self);
+        out
     }
 
     // Overwrite the provided array, rather than allocate a new one.
     fn clone_from(&mut self, source: &Map) {
-        let Map { approach: me_a, flee_cowardly: me_fc, flee_bravely: me_fb } = *source;
-        let Map { approach: mut out_a, flee_cowardly: mut out_fc, flee_bravely: mut out_fb } =
-            *self;
+        self.sources = source.sources.clone();
         for y in 0..HEIGHT {
             for x in 0..WIDTH {
-                out_a[y][x] = me_a[y][x];
-                out_fc[y][x] = me_fc[y][x];
-                out_fb[y][x] = me_fb[y][x];
+                self.approach[y][x] = source.approach[y][x];
+                self.flee_cowardly[y][x] = source.flee_cowardly[y][x];
+                self.flee_bravely[y][x] = source.flee_bravely[y][x];
             }
         }
     }
@@ -55,53 +61,28 @@ impl Clone for Map {
 
 impl Debug for Map {
     fn fmt(&self, formatter: &mut Formatter) -> Result<(), Error> {
-        fn debug_array(formatter: &mut Formatter,
-                       arr: [[f64; WIDTH]; HEIGHT])
-                       -> Result<(), Error> {
-            let mut has_prior = false;
-
-            try!(write!(formatter, "["));
-            for row in arr.iter() {
-                // Prepend a comma if this isn't the first entry.
-                if has_prior {
-                    try!(write!(formatter, ","));
-                } else {
-                    has_prior = true;
-                }
-
-                // Output a single row.
-                try!(formatter.debug_list().entries(row.iter()).finish());
-            }
-            write!(formatter, "]")
-        }
-
-        let Map { approach: a, flee_cowardly: fc, flee_bravely: fb } = *self;
-        try!(write!(formatter, "("));
-        try!(debug_array(formatter, a));
-        try!(write!(formatter, ","));
-        try!(debug_array(formatter, fc));
-        try!(write!(formatter, ","));
-        try!(debug_array(formatter, fb));
-        try!(write!(formatter, ")"));
-        Ok(())
+        try!(write!(formatter, "<Map "));
+        try!(formatter.debug_list().entries(self.sources.iter()).finish());
+        write!(formatter, ">")
     }
 }
 
-/// Create a new map from the given goals.
-pub fn new_map_from_goals(goals: Vec<Point>, world: &World) -> Map {
+/// Create a new map from the given sources.
+pub fn new_map_from_sources(sources: Vec<Point>, world: &World) -> Map {
     let mut out = Map {
+        sources: sources.clone(),
         approach: [[f64::MAX; WIDTH]; HEIGHT],
         flee_cowardly: [[f64::MAX; WIDTH]; HEIGHT],
         flee_bravely: [[f64::MAX; WIDTH]; HEIGHT],
     };
 
     // Make the goals all global minima.
-    for goal in &goals {
-        out.approach[goal.y][goal.x] = 0.0;
+    for source in &sources {
+        out.approach[source.y][source.x] = 0.0;
     }
 
     // Fill in the rest of the approach map.
-    flood_fill(&mut out.approach, &goals, world);
+    flood_fill(&mut out.approach, &sources, world);
 
     // Compute the fleeing maps and find their global minima.
     let mut minima: Vec<Point> = Vec::new();
