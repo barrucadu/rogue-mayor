@@ -8,8 +8,8 @@
 use constants::*;
 use std::collections::BTreeMap;
 use std::collections::VecDeque;
+use std::f64;
 use std::fmt::{Debug, Error, Formatter};
-use std::usize;
 use types::*;
 use utils::*;
 
@@ -22,15 +22,15 @@ pub enum MapTag {
 #[derive(Copy)]
 pub struct Map {
     /// Dijkstra map for approaching.
-    pub approach: [[usize; WIDTH]; HEIGHT],
+    pub approach: [[f64; WIDTH]; HEIGHT],
     /// Dijkstra map for fleeing, where the fleeing creature in question is not willing to take many
     /// risks to escape.. This is the approaching map multipled by a negative coefficient and
     /// rescanned to smooth out corners and the like.
-    pub flee_cowardly: [[usize; WIDTH]; HEIGHT],
+    pub flee_cowardly: [[f64; WIDTH]; HEIGHT],
     /// Dijkstra map for fleeing, where the fleeing creature in question is willing to take more
     /// risks to escape. This is the approaching map multipled by a negative coefficient and
     /// rescanned to smooth out corners and the like.
-    pub flee_bravely: [[usize; WIDTH]; HEIGHT],
+    pub flee_bravely: [[f64; WIDTH]; HEIGHT],
 }
 
 impl Clone for Map {
@@ -56,7 +56,7 @@ impl Clone for Map {
 impl Debug for Map {
     fn fmt(&self, formatter: &mut Formatter) -> Result<(), Error> {
         fn debug_array(formatter: &mut Formatter,
-                       arr: [[usize; WIDTH]; HEIGHT])
+                       arr: [[f64; WIDTH]; HEIGHT])
                        -> Result<(), Error> {
             let mut has_prior = false;
 
@@ -90,14 +90,14 @@ impl Debug for Map {
 /// Create a new map from the given goals.
 pub fn new_map_from_goals(goals: Vec<Point>, world: &World) -> Map {
     let mut out = Map {
-        approach: [[usize::MAX; WIDTH]; HEIGHT],
-        flee_cowardly: [[usize::MAX; WIDTH]; HEIGHT],
-        flee_bravely: [[usize::MAX; WIDTH]; HEIGHT],
+        approach: [[f64::MAX; WIDTH]; HEIGHT],
+        flee_cowardly: [[f64::MAX; WIDTH]; HEIGHT],
+        flee_bravely: [[f64::MAX; WIDTH]; HEIGHT],
     };
 
     // Make the goals all global minima.
     for goal in &goals {
-        out.approach[goal.y][goal.x] = 0;
+        out.approach[goal.y][goal.x] = 0.0;
     }
 
     // Fill in the rest of the approach map.
@@ -105,14 +105,12 @@ pub fn new_map_from_goals(goals: Vec<Point>, world: &World) -> Map {
 
     // Compute the fleeing maps and find their global minima.
     let mut minima: Vec<Point> = Vec::new();
-    let mut minimal: usize = usize::MAX;
+    let mut minimal: f64 = f64::MAX;
     for y in 0..HEIGHT {
         for x in 0..WIDTH {
-            if out.approach[y][x] != usize::MAX {
-                out.flee_cowardly[y][x] =
-                    (out.approach[y][x] as f64 * COWARDICE_COEFF).round() as usize;
-                out.flee_bravely[y][x] =
-                    (out.approach[y][x] as f64 * BRAVERY_COEFF).round() as usize;
+            if out.approach[y][x] != f64::MAX {
+                out.flee_cowardly[y][x] = out.approach[y][x] * COWARDICE_COEFF;
+                out.flee_bravely[y][x] = out.approach[y][x] * BRAVERY_COEFF;
 
                 if out.flee_cowardly[y][x] == minimal {
                     minima.push(Point { x: x, y: y });
@@ -137,7 +135,7 @@ pub fn new_map_from_goals(goals: Vec<Point>, world: &World) -> Map {
 ///
 /// This function assumes that the points given are the global minima, and may not perform properly
 /// if that is not the case.
-fn flood_fill(map: &mut [[usize; WIDTH]; HEIGHT], minima: &Vec<Point>, world: &World) {
+fn flood_fill(map: &mut [[f64; WIDTH]; HEIGHT], minima: &Vec<Point>, world: &World) {
     let mut queue: VecDeque<Point> = VecDeque::with_capacity(WIDTH * HEIGHT / 2);
     for m in minima {
         queue.push_back(*m);
@@ -169,8 +167,9 @@ fn flood_fill(map: &mut [[usize; WIDTH]; HEIGHT], minima: &Vec<Point>, world: &W
             }
 
             // If this results in a change of weight, push all the adjacent tiles > the old value.
-            if local_min + 1 < map[pos.y][pos.x] {
-                map[pos.y][pos.x] = local_min + 1;
+            let my_min = local_min + 1.0;
+            if my_min < map[pos.y][pos.x] {
+                map[pos.y][pos.x] = my_min;
                 for a in adj {
                     queue.push_back(a);
                 }

@@ -86,7 +86,7 @@ impl Mobile {
                                 flee_cowardly[y][x]
                             }
                         };
-                        weight_here += w * delta as f64;
+                        weight_here += w * delta;
                     } else {
                         panic!("MapTag '{:?}' is missing, got: {:?}", tag, maps);
                     }
