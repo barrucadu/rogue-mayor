@@ -60,6 +60,16 @@ impl Maps {
             MapTag::Sustenance => &self.sustenance,
         }
     }
+
+    /// Look up a map by tag and return a mutable reference.
+    pub fn mutget(&mut self, tag: MapTag) -> &mut Map {
+        match tag {
+            MapTag::Adventure => &mut self.adventure,
+            MapTag::GeneralStore => &mut self.general_store,
+            MapTag::Rest => &mut self.rest,
+            MapTag::Sustenance => &mut self.sustenance,
+        }
+    }
 }
 
 /// Symbolic names for the different maps.

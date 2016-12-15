@@ -25,6 +25,8 @@ fn main() {
             let mut mobs: BTreeMap<Point, Mobile> = BTreeMap::new();
             let mut world: World = World {};
 
+            maps.mutget(MapTag::Adventure).add_source(Point { x: 50, y: 25 }, &world);
+
             // Game loop
             'game: loop {
                 // Update all mobs: clone the mob map, as we're going to be mutating it then, for
