@@ -9,3 +9,4 @@ readme      = "README.markdown"
 license     = "MIT"
 
 [dependencies]
+sdl2 = "0.26.0"

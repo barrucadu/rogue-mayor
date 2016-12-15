@@ -4,8 +4,11 @@
         trivial_numeric_casts, unused_extern_crates, unused_import_braces, unused_qualifications,
         unused_results)]
 
+extern crate sdl2;
+
 pub mod constants;
 pub mod dijkstra_map;
 pub mod mobiles;
 pub mod types;
 pub mod utils;
+pub mod ui;
