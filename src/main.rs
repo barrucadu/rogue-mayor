@@ -8,6 +8,7 @@
 extern crate rogue_mayor;
 
 use rogue_mayor::dijkstra_map::*;
+use rogue_mayor::grid::*;
 use rogue_mayor::mobiles::*;
 use rogue_mayor::types::*;
 use rogue_mayor::ui::*;

@@ -1,6 +1,7 @@
 //! A renderer using SDL2.
 
 use dijkstra_map::*;
+use grid::*;
 use mobiles::*;
 use sdl2;
 use sdl2::event::Event;

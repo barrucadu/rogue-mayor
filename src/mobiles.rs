@@ -3,6 +3,7 @@
 
 use constants::*;
 use dijkstra_map::*;
+use grid::*;
 use std::collections::BTreeMap;
 use std::f64;
 use types::*;
@@ -78,14 +79,15 @@ impl Mobile {
                     let wgt = *weight;
                     let map = maps.get(*tag);
                     let delta = if wgt > 0.0 {
-                        map.approach[y][x]
-                    } else {
-                        if self.brave {
-                            map.flee_bravely[y][x]
+                            &map.approach
                         } else {
-                            map.flee_cowardly[y][x]
+                            if self.brave {
+                                &map.flee_bravely
+                            } else {
+                                &map.flee_cowardly
+                            }
                         }
-                    };
+                        .at(Point { x: x, y: y });
                     weight_here += wgt * delta;
                 }
 

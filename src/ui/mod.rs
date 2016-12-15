@@ -3,6 +3,7 @@
 pub mod sdlui;
 
 use dijkstra_map::*;
+use grid::*;
 use mobiles::Mobile;
 use std::collections::BTreeMap;
 use types::*;

@@ -1,5 +1,6 @@
 //! Utility functions.
 
+use grid::*;
 use mobiles::*;
 use std::collections::BTreeMap;
 use types::*;
