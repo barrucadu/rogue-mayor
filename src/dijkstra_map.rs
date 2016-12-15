@@ -67,6 +67,56 @@ impl Debug for Map {
     }
 }
 
+impl Map {
+    /// Add a new source to the map. This is a little cheaper than constructing an entirely new map
+    /// with the sources vector.
+    pub fn add_source(&mut self, source: Point, world: &World) {
+        self.sources.push(source);
+
+        // Set the point to zero weighting and flood fill from that point.
+        self.approach[source.y][source.x] = 0.0;
+        flood_fill(&mut self.approach, &vec![source], world);
+
+        // Then completely recompute the flee maps.
+        self.recompute_flee(world);
+    }
+
+    /// Remove a source from the map. This is no cheaper than constructing an entirely new map with
+    /// the source vector, it is just provided for convenience.
+    pub fn remove_source(&mut self, source: Point, world: &World) {
+        let mut sources = self.sources.clone();
+        sources.retain(|s| *s != source);
+        let new = new_map_from_sources(sources, world);
+        self.clone_from(&new);
+    }
+
+    /// Recompute the fleeing maps. Not publically exported as it's called appropriately by other
+    /// functions in here.
+    fn recompute_flee(&mut self, world: &World) {
+        let mut minima: Vec<Point> = Vec::new();
+        let mut minimal: f64 = f64::MAX;
+        for y in 0..HEIGHT {
+            for x in 0..WIDTH {
+                if self.approach[y][x] != f64::MAX {
+                    self.flee_cowardly[y][x] = self.approach[y][x] * COWARDICE_COEFF;
+                    self.flee_bravely[y][x] = self.approach[y][x] * BRAVERY_COEFF;
+
+                    if self.flee_cowardly[y][x] == minimal {
+                        minima.push(Point { x: x, y: y });
+                    } else if self.flee_cowardly[y][x] < minimal {
+                        minima = vec![Point { x: x, y: y }];
+                        minimal = self.flee_cowardly[y][x];
+                    }
+                }
+            }
+        }
+
+        // Smooth the fleeing aps by flood filling from their minima.
+        flood_fill(&mut self.flee_cowardly, &minima, world);
+        flood_fill(&mut self.flee_bravely, &minima, world);
+    }
+}
+
 /// Create a new map from the given sources.
 pub fn new_map_from_sources(sources: Vec<Point>, world: &World) -> Map {
     let mut out = Map {
@@ -85,27 +135,7 @@ pub fn new_map_from_sources(sources: Vec<Point>, world: &World) -> Map {
     flood_fill(&mut out.approach, &sources, world);
 
     // Compute the fleeing maps and find their global minima.
-    let mut minima: Vec<Point> = Vec::new();
-    let mut minimal: f64 = f64::MAX;
-    for y in 0..HEIGHT {
-        for x in 0..WIDTH {
-            if out.approach[y][x] != f64::MAX {
-                out.flee_cowardly[y][x] = out.approach[y][x] * COWARDICE_COEFF;
-                out.flee_bravely[y][x] = out.approach[y][x] * BRAVERY_COEFF;
-
-                if out.flee_cowardly[y][x] == minimal {
-                    minima.push(Point { x: x, y: y });
-                } else if out.flee_cowardly[y][x] < minimal {
-                    minima = vec![Point { x: x, y: y }];
-                    minimal = out.flee_cowardly[y][x];
-                }
-            }
-        }
-    }
-
-    // Smooth the fleeing aps by flood filling from their minima.
-    flood_fill(&mut out.flee_cowardly, &minima, world);
-    flood_fill(&mut out.flee_bravely, &minima, world);
+    out.recompute_flee(world);
 
     out
 }
