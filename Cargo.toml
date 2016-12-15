@@ -8,5 +8,7 @@ repository  = "https://github.com/barrucadu/rogue-mayor.git"
 readme      = "README.markdown"
 license     = "MIT"
 
-[dependencies]
-sdl2 = "0.26.0"
+[dependencies.sdl2]
+version = "0.27.0"
+default-features = false
+features = ["ttf"]
