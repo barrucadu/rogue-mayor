@@ -10,16 +10,17 @@ extern crate rogue_mayor;
 use rogue_mayor::dijkstra_map::*;
 use rogue_mayor::mobiles::*;
 use rogue_mayor::types::*;
-use rogue_mayor::ui::{UI, sdlui};
+use rogue_mayor::ui::*;
+use rogue_mayor::ui::sdlui::*;
 use std::collections::BTreeMap;
 
 fn main() {
     println!("Welcome to Rogue Mayor!");
 
-    match sdlui::new() {
+    match SdlUI::new() {
         Ok(mut ui) => {
             // Set up the state.
-            let mut maps: Maps = new_maps();
+            let mut maps: Maps = Maps::new();
             let mut mobs: BTreeMap<Point, Mobile> = BTreeMap::new();
             let mut world: World = World {};
 

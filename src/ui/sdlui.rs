@@ -23,27 +23,29 @@ pub struct SdlUI {
     renderer: sdl2::render::Renderer<'static>,
 }
 
-/// Construct a new SDL2 interface. Should only be called once.
-pub fn new() -> Result<SdlUI, String> {
-    let context = try!(sdl2::init());
-    let events = try!(context.event_pump());
-    let video = try!(context.video());
-    let window =
-        match video.window("Rogue Mayor", 1024, 768).position_centered().opengl().build() {
-            Ok(win) => win,
+impl SdlUI {
+    /// Construct a new SDL2 interface. Should only be called once.
+    pub fn new() -> Result<SdlUI, String> {
+        let context = try!(sdl2::init());
+        let events = try!(context.event_pump());
+        let video = try!(context.video());
+        let window =
+            match video.window("Rogue Mayor", 1024, 768).position_centered().opengl().build() {
+                Ok(win) => win,
+                Err(e) => return Err(format!("{}", e)),
+            };
+        let renderer = match window.renderer().build() {
+            Ok(ren) => ren,
             Err(e) => return Err(format!("{}", e)),
         };
-    let renderer = match window.renderer().build() {
-        Ok(ren) => ren,
-        Err(e) => return Err(format!("{}", e)),
-    };
 
-    Ok(SdlUI {
-        context: context,
-        events: events,
-        video: video,
-        renderer: renderer,
-    })
+        Ok(SdlUI {
+            context: context,
+            events: events,
+            video: video,
+            renderer: renderer,
+        })
+    }
 }
 
 impl UI for SdlUI {

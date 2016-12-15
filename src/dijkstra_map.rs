@@ -40,6 +40,16 @@ impl Debug for Maps {
 }
 
 impl Maps {
+    /// Construct empty maps.
+    pub fn new() -> Maps {
+        Maps {
+            adventure: Map::new(),
+            general_store: Map::new(),
+            rest: Map::new(),
+            sustenance: Map::new(),
+        }
+    }
+
     /// Look up a map by tag.
     pub fn get(&self, tag: MapTag) -> &Map {
         match tag {
@@ -62,16 +72,6 @@ pub enum MapTag {
     Rest,
     /// Sources of food and drink, such as inns.
     Sustenance,
-}
-
-/// Construct empty maps.
-pub fn new_maps() -> Maps {
-    Maps {
-        adventure: new_map(),
-        general_store: new_map(),
-        rest: new_map(),
-        sustenance: new_map(),
-    }
 }
 
 /// A Dijkstra map, or heatmap.
@@ -99,6 +99,16 @@ impl Debug for Map {
 }
 
 impl Map {
+    /// A new empty map.
+    fn new() -> Map {
+        Map {
+            sources: Vec::new(),
+            approach: Box::new([[f64::MAX; WIDTH]; HEIGHT]),
+            flee_cowardly: Box::new([[f64::MAX; WIDTH]; HEIGHT]),
+            flee_bravely: Box::new([[f64::MAX; WIDTH]; HEIGHT]),
+        }
+    }
+
     /// Add a new source to the map.
     pub fn add_source(&mut self, source: Point, world: &World) {
         self.sources.push(source);
@@ -164,16 +174,6 @@ impl Map {
         // Smooth the fleeing aps by flood filling from their minima.
         flood_fill(&mut self.flee_cowardly, &minima, world);
         flood_fill(&mut self.flee_bravely, &minima, world);
-    }
-}
-
-/// A new empty map.
-pub fn new_map() -> Map {
-    Map {
-        sources: Vec::new(),
-        approach: Box::new([[f64::MAX; WIDTH]; HEIGHT]),
-        flee_cowardly: Box::new([[f64::MAX; WIDTH]; HEIGHT]),
-        flee_bravely: Box::new([[f64::MAX; WIDTH]; HEIGHT]),
     }
 }
 
