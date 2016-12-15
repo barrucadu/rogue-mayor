@@ -59,6 +59,7 @@ impl UI for SdlUI {
             Event::AppTerminating { .. } |
             Event::KeyDown { keycode: Some(Keycode::Escape), .. } => Command::Quit,
             Event::KeyDown { keycode: Some(Keycode::Space), .. } => Command::Skip,
+            Event::KeyDown { keycode: Some(Keycode::F5), .. } => Command::Render,
             _ => self.input(), // Ignore unexpected input.
         }
     }

@@ -13,10 +13,12 @@ pub struct Point {
 /// A command from the user.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Command {
-    /// Advance one turn without doing any user action.
-    Skip,
     /// Terminate.
     Quit,
+    /// Render the UI without advancing a turn.
+    Render,
+    /// Advance one turn without doing any user action.
+    Skip,
 }
 
 /// The state of the vsible map and the larger game world.

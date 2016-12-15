@@ -41,15 +41,18 @@ fn main() {
                 }
                 mobs = new_mobs;
 
+                let mut action = Command::Render;
+                'ui: while action == Command::Render {
+                    // Render the world now, so the player has an up-to-date view before they are
+                    // prompted for their next action.
+                    ui.render(&mobs, &maps, &world);
 
-                // Render the world now, so the player has an up-to-date view before they are
-                // prompted for their next action.
-                ui.render(&mobs, &maps, &world);
-
-                // Prompt for user input and perform the desired action.
-                match ui.input() {
-                    Command::Skip => {}
-                    Command::Quit => break 'game,
+                    // Prompt for user input and perform the desired action.
+                    action = ui.input();
+                    match action {
+                        Command::Skip | Command::Render => {}
+                        Command::Quit => break 'game,
+                    }
                 }
 
                 // Step the world state.
