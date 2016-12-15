@@ -1,7 +1,6 @@
 //! Grids: state about every point in the game world.
 
 use constants::*;
-use std::fmt::{Debug, Error, Formatter};
 
 /// A location in 2d space.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
