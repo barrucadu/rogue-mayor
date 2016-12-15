@@ -16,6 +16,17 @@ use utils::*;
 /// A type of heatmap: each maptag has an associated map.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum MapTag {
+    /// Places offering adventure, such as the dungeon entrance.
+    Adventure,
+
+    /// Stores, every store sells every type of thing currently.
+    GeneralStore,
+
+    /// Places to rest, such as inns.
+    Rest,
+
+    /// Sources of food and drink, such as inns.
+    Sustenance,
 }
 
 /// A Dijkstra map, or heatmap.
@@ -114,6 +125,16 @@ impl Map {
         // Smooth the fleeing aps by flood filling from their minima.
         flood_fill(&mut self.flee_cowardly, &minima, world);
         flood_fill(&mut self.flee_bravely, &minima, world);
+    }
+}
+
+/// A new empty map.
+pub fn new_map() -> Map {
+    Map {
+        sources: Vec::new(),
+        approach: [[f64::MAX; WIDTH]; HEIGHT],
+        flee_cowardly: [[f64::MAX; WIDTH]; HEIGHT],
+        flee_bravely: [[f64::MAX; WIDTH]; HEIGHT],
     }
 }
 

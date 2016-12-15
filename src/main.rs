@@ -7,7 +7,9 @@
 
 extern crate rogue_mayor;
 
-use rogue_mayor::types::{BasicUI, Command, Map, MapTag, Mobile, Point, UI, World};
+use rogue_mayor::dijkstra_map::*;
+use rogue_mayor::mobiles::*;
+use rogue_mayor::types::*;
 
 use std::collections::BTreeMap;
 
@@ -18,6 +20,12 @@ fn main() {
     let mut mobs: BTreeMap<Point, Mobile> = BTreeMap::new();
     let mut world: World = World {};
     let mut ui: BasicUI = BasicUI {};
+
+    // Set up the state.
+    let _ = maps.insert(MapTag::Adventure, new_map());
+    let _ = maps.insert(MapTag::GeneralStore, new_map());
+    let _ = maps.insert(MapTag::Rest, new_map());
+    let _ = maps.insert(MapTag::Sustenance, new_map());
 
     // Game loop
     'game: loop {
