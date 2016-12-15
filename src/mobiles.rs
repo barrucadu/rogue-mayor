@@ -24,7 +24,7 @@ impl Mobile {
     pub fn step(&self,
                 pos: Point,
                 mobs: &mut BTreeMap<Point, Mobile>,
-                maps: &mut BTreeMap<MapTag, Map>,
+                maps: &mut Maps,
                 world: &mut World) {
         // Compute a position to move to based on the desires of the mob.
         let new_pos = self.heatmap_ai(pos, maps);
@@ -57,7 +57,7 @@ impl Mobile {
     /// See:
     /// - http://www.roguebasin.com/index.php?title=The_Incredible_Power_of_Dijkstra_Maps
     /// - http://www.roguebasin.com/index.php?title=Dijkstra_Maps_Visualized
-    fn heatmap_ai(&self, pos: Point, maps: &BTreeMap<MapTag, Map>) -> Point {
+    fn heatmap_ai(&self, pos: Point, maps: &Maps) -> Point {
         // Find the minimum weighted sum of all the heatmaps in the local area:
         let mut new_pos = pos;
         let mut min_so_far = f64::MAX;
@@ -75,21 +75,18 @@ impl Mobile {
                 // Compute the weight here.
                 let mut weight_here = 0.0;
                 for (tag, weight) in &self.desires {
-                    let w: f64 = *weight;
-                    if let Some(ref map) = maps.get(tag) {
-                        let delta = if w > 0.0 {
-                            map.approach[y][x]
-                        } else {
-                            if self.brave {
-                                map.flee_bravely[y][x]
-                            } else {
-                                map.flee_cowardly[y][x]
-                            }
-                        };
-                        weight_here += w * delta;
+                    let wgt = *weight;
+                    let map = maps.get(*tag);
+                    let delta = if wgt > 0.0 {
+                        map.approach[y][x]
                     } else {
-                        panic!("MapTag '{:?}' is missing, got: {:?}", tag, maps);
-                    }
+                        if self.brave {
+                            map.flee_bravely[y][x]
+                        } else {
+                            map.flee_cowardly[y][x]
+                        }
+                    };
+                    weight_here += wgt * delta;
                 }
 
                 // And compare with the minimum seen so far.
@@ -107,7 +104,7 @@ impl Mobile {
                          _: Point,
                          _: Point,
                          _: &mut BTreeMap<Point, Mobile>,
-                         _: &mut BTreeMap<MapTag, Map>,
+                         _: &mut Maps,
                          _: &mut World) {
         unimplemented!()
     }

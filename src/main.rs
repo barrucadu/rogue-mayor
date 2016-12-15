@@ -16,16 +16,10 @@ use std::collections::BTreeMap;
 fn main() {
     println!("Welcome to Rogue Mayor!");
 
-    let mut maps: BTreeMap<MapTag, Map> = BTreeMap::new();
+    let mut maps: Maps = new_maps();
     let mut mobs: BTreeMap<Point, Mobile> = BTreeMap::new();
     let mut world: World = World {};
     let mut ui: BasicUI = BasicUI {};
-
-    // Set up the state.
-    let _ = maps.insert(MapTag::Adventure, new_map());
-    let _ = maps.insert(MapTag::GeneralStore, new_map());
-    let _ = maps.insert(MapTag::Rest, new_map());
-    let _ = maps.insert(MapTag::Sustenance, new_map());
 
     // Game loop
     'game: loop {

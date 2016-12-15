@@ -13,20 +13,65 @@ use std::fmt::{Debug, Error, Formatter};
 use types::*;
 use utils::*;
 
-/// A type of heatmap: each maptag has an associated map.
+/// The collection of all Dijkstra maps.
+pub struct Maps {
+    /// Places offering adventure, such as the dungeon entrance.
+    pub adventure: Map,
+    /// Stores, every store sells every type of thing currently.
+    pub general_store: Map,
+    /// Places to rest, such as inns.
+    pub rest: Map,
+    /// Sources of food and drink, such as inns.
+    pub sustenance: Map,
+}
+
+impl Debug for Maps {
+    fn fmt(&self, formatter: &mut Formatter) -> Result<(), Error> {
+        try!(write!(formatter, "Maps:"));
+        try!(write!(formatter, "\n\tAdventure: "));
+        try!(self.adventure.fmt(formatter));
+        try!(write!(formatter, "\n\tGeneralStore: "));
+        try!(self.general_store.fmt(formatter));
+        try!(write!(formatter, "\n\tRest: "));
+        try!(self.rest.fmt(formatter));
+        try!(write!(formatter, "\n\tSustenance: "));
+        self.sustenance.fmt(formatter)
+    }
+}
+
+impl Maps {
+    /// Look up a map by tag.
+    pub fn get(&self, tag: MapTag) -> &Map {
+        match tag {
+            MapTag::Adventure => &self.adventure,
+            MapTag::GeneralStore => &self.general_store,
+            MapTag::Rest => &self.rest,
+            MapTag::Sustenance => &self.sustenance,
+        }
+    }
+}
+
+/// Symbolic names for the different maps.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum MapTag {
     /// Places offering adventure, such as the dungeon entrance.
     Adventure,
-
     /// Stores, every store sells every type of thing currently.
     GeneralStore,
-
     /// Places to rest, such as inns.
     Rest,
-
     /// Sources of food and drink, such as inns.
     Sustenance,
+}
+
+/// Construct empty maps.
+pub fn new_maps() -> Maps {
+    Maps {
+        adventure: new_map(),
+        general_store: new_map(),
+        rest: new_map(),
+        sustenance: new_map(),
+    }
 }
 
 /// A Dijkstra map, or heatmap.
@@ -34,40 +79,15 @@ pub struct Map {
     /// The sources (the global minima of the approach map).
     pub sources: Vec<Point>,
     /// Dijkstra map for approaching.
-    pub approach: [[f64; WIDTH]; HEIGHT],
+    pub approach: Box<[[f64; WIDTH]; HEIGHT]>,
     /// Dijkstra map for fleeing, where the fleeing creature in question is not willing to take many
     /// risks to escape.. This is the approaching map multipled by a negative coefficient and
     /// rescanned to smooth out corners and the like.
-    pub flee_cowardly: [[f64; WIDTH]; HEIGHT],
+    pub flee_cowardly: Box<[[f64; WIDTH]; HEIGHT]>,
     /// Dijkstra map for fleeing, where the fleeing creature in question is willing to take more
     /// risks to escape. This is the approaching map multipled by a negative coefficient and
     /// rescanned to smooth out corners and the like.
-    pub flee_bravely: [[f64; WIDTH]; HEIGHT],
-}
-
-impl Clone for Map {
-    fn clone(&self) -> Map {
-        let mut out = Map {
-            sources: self.sources.clone(),
-            approach: [[0.0; WIDTH]; HEIGHT],
-            flee_cowardly: [[0.0; WIDTH]; HEIGHT],
-            flee_bravely: [[0.0; WIDTH]; HEIGHT],
-        };
-        out.clone_from(self);
-        out
-    }
-
-    // Overwrite the provided array, rather than allocate a new one.
-    fn clone_from(&mut self, source: &Map) {
-        self.sources = source.sources.clone();
-        for y in 0..HEIGHT {
-            for x in 0..WIDTH {
-                self.approach[y][x] = source.approach[y][x];
-                self.flee_cowardly[y][x] = source.flee_cowardly[y][x];
-                self.flee_bravely[y][x] = source.flee_bravely[y][x];
-            }
-        }
-    }
+    pub flee_bravely: Box<[[f64; WIDTH]; HEIGHT]>,
 }
 
 impl Debug for Map {
@@ -79,8 +99,7 @@ impl Debug for Map {
 }
 
 impl Map {
-    /// Add a new source to the map. This is a little cheaper than constructing an entirely new map
-    /// with the sources vector.
+    /// Add a new source to the map.
     pub fn add_source(&mut self, source: Point, world: &World) {
         self.sources.push(source);
 
@@ -92,13 +111,33 @@ impl Map {
         self.recompute_flee(world);
     }
 
-    /// Remove a source from the map. This is no cheaper than constructing an entirely new map with
-    /// the source vector, it is just provided for convenience.
+    /// Remove a source from the map.
     pub fn remove_source(&mut self, source: Point, world: &World) {
-        let mut sources = self.sources.clone();
-        sources.retain(|s| *s != source);
-        let new = new_map_from_sources(sources, world);
-        self.clone_from(&new);
+        self.sources.retain(|s| *s != source);
+        self.rebuild_from_sources(world);
+    }
+
+    /// Rebuild the map entirely from the sources.
+    fn rebuild_from_sources(&mut self, world: &World) {
+        // Reset the weights.
+        for y in 0..HEIGHT {
+            for x in 0..WIDTH {
+                self.approach[y][x] = f64::MAX;
+                self.flee_cowardly[y][x] = f64::MAX;
+                self.flee_bravely[y][x] = f64::MAX;
+            }
+        }
+
+        // Make the goals all global minima.
+        for source in &self.sources {
+            self.approach[source.y][source.x] = 0.0;
+        }
+
+        // Fill in the rest of the approach map.
+        flood_fill(&mut self.approach, &self.sources, world);
+
+        // Compute the fleeing maps and find their global minima.
+        self.recompute_flee(world);
     }
 
     /// Recompute the fleeing maps. Not publically exported as it's called appropriately by other
@@ -132,33 +171,10 @@ impl Map {
 pub fn new_map() -> Map {
     Map {
         sources: Vec::new(),
-        approach: [[f64::MAX; WIDTH]; HEIGHT],
-        flee_cowardly: [[f64::MAX; WIDTH]; HEIGHT],
-        flee_bravely: [[f64::MAX; WIDTH]; HEIGHT],
+        approach: Box::new([[f64::MAX; WIDTH]; HEIGHT]),
+        flee_cowardly: Box::new([[f64::MAX; WIDTH]; HEIGHT]),
+        flee_bravely: Box::new([[f64::MAX; WIDTH]; HEIGHT]),
     }
-}
-
-/// Create a new map from the given sources.
-pub fn new_map_from_sources(sources: Vec<Point>, world: &World) -> Map {
-    let mut out = Map {
-        sources: sources.clone(),
-        approach: [[f64::MAX; WIDTH]; HEIGHT],
-        flee_cowardly: [[f64::MAX; WIDTH]; HEIGHT],
-        flee_bravely: [[f64::MAX; WIDTH]; HEIGHT],
-    };
-
-    // Make the goals all global minima.
-    for source in &sources {
-        out.approach[source.y][source.x] = 0.0;
-    }
-
-    // Fill in the rest of the approach map.
-    flood_fill(&mut out.approach, &sources, world);
-
-    // Compute the fleeing maps and find their global minima.
-    out.recompute_flee(world);
-
-    out
 }
 
 /// Flood fill out from some points. When considering a new point, this behaves as follows:

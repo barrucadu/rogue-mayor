@@ -36,7 +36,7 @@ impl World {
 /// The UI. Implemented as a trait to allow for differing implementations.
 pub trait UI {
     /// Render
-    fn render(&mut self, &BTreeMap<Point, Mobile>, &BTreeMap<MapTag, Map>, &World);
+    fn render(&mut self, &BTreeMap<Point, Mobile>, &Maps, &World);
 
     /// Await input.
     fn input(&self) -> Command;
@@ -47,7 +47,7 @@ pub trait UI {
 pub struct BasicUI {}
 
 impl UI for BasicUI {
-    fn render(&mut self, _: &BTreeMap<Point, Mobile>, _: &BTreeMap<MapTag, Map>, _: &World) {}
+    fn render(&mut self, _: &BTreeMap<Point, Mobile>, _: &Maps, _: &World) {}
     fn input(&self) -> Command {
         Command::Quit
     }
