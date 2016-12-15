@@ -107,13 +107,13 @@ impl SdlUI {
 }
 
 impl UI for SdlUI {
-    fn render(&mut self, _: &BTreeMap<Point, Mobile>, maps: &Maps, _: &World) {
+    fn render(&mut self, _: &BTreeMap<Point, Mobile>, maps: &Maps, world: &World) {
         self.renderer.set_draw_color(Color::RGB(0, 0, 0));
         self.renderer.clear();
 
-        // Render the active heatmap.
         match self.active_heatmap {
             Some((style, tag)) => {
+                // Render the active heatmap.
                 let heatmap = maps.get(tag);
                 let map = match style {
                     Style::Approach => &heatmap.approach,
@@ -127,7 +127,7 @@ impl UI for SdlUI {
                 for y in 0..HEIGHT {
                     for x in 0..WIDTH {
                         let val = map.at(Point { x: x, y: y });
-                        if val > max {
+                        if val > max && val != f64::MAX {
                             max = val;
                         }
                         if val < min {
@@ -150,10 +150,15 @@ impl UI for SdlUI {
                                              y as i32,
                                              CELL_PIXEL_WIDTH as u32,
                                              CELL_PIXEL_HEIGHT as u32);
-                        let p = (map.at(Point {
+                        let val = map.at(Point {
                             x: self.viewport.x + dx,
                             y: self.viewport.y + dy,
-                        }) - min) / (max - min);
+                        });
+                        let p = if val == f64::MAX {
+                            1.0
+                        } else {
+                            (val - min) / (max - min)
+                        };
                         self.renderer.set_draw_color(Color::RGB((255.0 * p).round() as u8,
                                                                 (255.0 * (1.0 - p)).round() as u8,
                                                                 0));
@@ -161,7 +166,34 @@ impl UI for SdlUI {
                     }
                 }
             }
-            None => {}
+            None => {
+                // Render the active occupied cells.
+                for dy in 0..VIEWPORT_CELL_HEIGHT {
+                    if self.viewport.y + dy > HEIGHT {
+                        break;
+                    }
+                    for dx in 0..VIEWPORT_CELL_WIDTH {
+                        if self.viewport.x + dx > WIDTH {
+                            break;
+                        }
+                        self.renderer.set_draw_color(if world.occupied.at(Point {
+                            x: self.viewport.x + dx,
+                            y: self.viewport.y + dy,
+                        }) {
+                            Color::RGB(255, 255, 255)
+                        } else {
+                            Color::RGB(0, 0, 0)
+                        });
+                        let x = MARGIN_PIXEL_LEFT + (self.viewport.x + dx) * CELL_PIXEL_WIDTH;
+                        let y = MARGIN_PIXEL_TOP + (self.viewport.y + dy) * CELL_PIXEL_HEIGHT;
+                        let rect = Rect::new(x as i32,
+                                             y as i32,
+                                             CELL_PIXEL_WIDTH as u32,
+                                             CELL_PIXEL_HEIGHT as u32);
+                        let _ = self.renderer.fill_rect(rect);
+                    }
+                }
+            }
         }
 
         self.renderer.present();

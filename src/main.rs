@@ -7,6 +7,7 @@
 
 extern crate rogue_mayor;
 
+use rogue_mayor::constants::*;
 use rogue_mayor::dijkstra_map::*;
 use rogue_mayor::grid::*;
 use rogue_mayor::mobiles::*;
@@ -23,9 +24,17 @@ fn main() {
             // Set up the state.
             let mut maps: Maps = Maps::new();
             let mut mobs: BTreeMap<Point, Mobile> = BTreeMap::new();
-            let mut world: World = World {};
+            let mut world: World = World::new();
 
+            // Testing stuff
+            for x in 0..WIDTH - 1 {
+                world.occupied.set(Point { x: x, y: 5 }, true);
+            }
+            for y in HEIGHT / 2 - HEIGHT / 3..HEIGHT / 2 + HEIGHT / 2 {
+                world.occupied.set(Point { x: 10, y: y }, true);
+            }
             maps.mutget(MapTag::Adventure).add_source(Point { x: 50, y: 25 }, &world);
+            maps.mutget(MapTag::Adventure).add_source(Point { x: 0, y: 0 }, &world);
 
             // Game loop
             'game: loop {
