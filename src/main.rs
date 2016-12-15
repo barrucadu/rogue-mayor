@@ -26,6 +26,12 @@ fn main() {
             let mut mobs: BTreeMap<Point, Mobile> = BTreeMap::new();
             let mut world: World = World::new();
 
+            // Everyone likes welcomes.
+            world.log(Message {
+                msg: "Welcome to Rogue Mayor!".to_string(),
+                loc: None,
+            });
+
             // Testing stuff
             for x in 0..WIDTH - 1 {
                 world.occupied.set(Point { x: x, y: 5 }, true);
