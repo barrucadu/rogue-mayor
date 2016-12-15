@@ -204,11 +204,12 @@ fn flood_fill(map: &mut Grid<f64>, minima: &Vec<Point>, world: &World) {
 
     // Flood fill.
     while let Some(pos) = queue.pop_front() {
+        let val = map.at(pos);
+
         // Only consider permanent fixtures, not mobs.
         if !is_occupied(pos, &BTreeMap::new(), world) {
-            // Compute the local minima ans also the adjacent tiles > the current value.
-            let mut local_min = map.at(pos);
-            let mut adj = Vec::new();
+            // Compute the local minima.
+            let mut local_min = val;
             for dy in inclusive_range(-1, 1) {
                 if (dy < 0 && pos.y == 0) || (dy > 0 && pos.y == HEIGHT - 1) {
                     continue;
@@ -217,24 +218,42 @@ fn flood_fill(map: &mut Grid<f64>, minima: &Vec<Point>, world: &World) {
                     if (dx < 0 && pos.x == 0) || (dx > 0 && pos.x == WIDTH - 1) {
                         continue;
                     }
-                    let p = Point {
+                    let here = map.at(Point {
                         x: signed_add(pos.x, dx),
                         y: signed_add(pos.y, dy),
-                    };
-                    if map.at(p) < local_min {
-                        local_min = map.at(p);
-                    } else if map.at(p) > map.at(pos) {
-                        adj.push(p);
+                    });
+                    if here < local_min {
+                        local_min = here;
                     }
                 }
             }
 
-            // If this results in a change of weight, push all the adjacent tiles > the old value.
+            // If this results in a change of weight, push all the adjacent tiles > the new
+            // value+1. A special case is if the weight is 0, as that means we're flood filling from
+            // this point outwards (and it naturally won't reduce!). A "better" check would be if
+            // `pos` is in `minima`, but that is far more expensive than a simple floating point
+            // comparison.
             let my_min = local_min + 1.0;
-            if my_min < map.at(pos) {
+            if my_min < val {
                 map.set(pos, my_min);
-                for a in adj {
-                    queue.push_back(a);
+            }
+            if my_min < val || val == 0.0 {
+                for dy in inclusive_range(-1, 1) {
+                    if (dy < 0 && pos.y == 0) || (dy > 0 && pos.y == HEIGHT - 1) {
+                        continue;
+                    }
+                    for dx in inclusive_range(-1, 1) {
+                        if (dx < 0 && pos.x == 0) || (dx > 0 && pos.x == WIDTH - 1) {
+                            continue;
+                        }
+                        let p = Point {
+                            x: signed_add(pos.x, dx),
+                            y: signed_add(pos.y, dy),
+                        };
+                        if map.at(p) > my_min + 1.0 {
+                            queue.push_back(p);
+                        }
+                    }
                 }
             }
         }
