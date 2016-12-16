@@ -10,8 +10,9 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
-use sdl2::render::{Renderer, TextureQuery};
+use sdl2::render::{Renderer, Texture, TextureQuery};
 use sdl2::ttf::{Font, Sdl2TtfContext};
+use statics::*;
 use std::collections::BTreeMap;
 use std::f64;
 use std::path::Path;
@@ -81,20 +82,15 @@ enum Style {
 }
 
 impl UI for SdlUI {
-    fn render(&mut self, _: &BTreeMap<Point, Mobile>, maps: &Maps, world: &World) {
+    fn render(&mut self, mobs: &BTreeMap<Point, Mobile>, maps: &Maps, world: &World) {
         self.renderer.set_draw_color(Color::RGB(0, 0, 0));
         self.renderer.clear();
 
         // Render the message log.
         self.render_log(world);
 
-        // Render the world.
-        self.render_world(world);
-
-        // Overlay the active heatmap as half opacity.
-        if self.show_heatmap {
-            self.render_heatmap(maps, 127);
-        }
+        // Render the world OR heatmap.
+        self.render_world(mobs, maps, world);
 
         // Finally, display everything.
         self.renderer.present();
@@ -160,23 +156,28 @@ impl SdlUI {
     fn render_log(&mut self, world: &World) {
         let font = self.ttf.load_font(Path::new(FONT_PATH), FONT_SIZE).unwrap();
 
+        let color = Color::RGB(255, 255, 255);
         let mut done = 0;
         for msg in world.messages.iter().take(LOG_ENTRIES_VISIBLE) {
-            render_text(&mut self.renderer,
-                        &font,
-                        msg.msg.clone(),
-                        MARGIN_PIXEL_LEFT as i32,
-                        ((LOG_ENTRIES_VISIBLE - done - 1) as u32 * LOG_ENTRY_HEIGHT) as i32,
-                        Color::RGB(255, 255, 255));
+            let bbox = Rect::new(
+                MARGIN_PIXEL_LEFT as i32,
+                ((LOG_ENTRIES_VISIBLE - done - 1) as u32 * LOG_ENTRY_HEIGHT) as i32,
+                CONTENT_WIDTH,
+                LOG_ENTRY_HEIGHT
+            );
+            let surface = font.render(msg.msg.as_str()).blended(color).unwrap();
+            let mut texture = self.renderer.create_texture_from_surface(&surface).unwrap();
+            render_in(&mut self.renderer, &mut texture, bbox, false, true);
             done += 1;
         }
     }
 
-    /// Render the active heatmap with the given alpha level.
-    fn render_heatmap(&mut self, maps: &Maps, alpha: u8) {
-        let (style, tag) = self.active_heatmap;
+    /// Render the world, with a heatmap overlay if enabled.
+    fn render_world(&mut self, mobs: &BTreeMap<Point, Mobile>, maps: &Maps, world: &World) {
+        let font = self.ttf.load_font(Path::new(FONT_PATH), FONT_SIZE).unwrap();
 
         // Render the active heatmap.
+        let (style, tag) = self.active_heatmap;
         let heatmap = maps.get(tag);
         let map = match style {
             Style::Approach => &heatmap.approach,
@@ -187,14 +188,16 @@ impl SdlUI {
         // Find the min and max values in the heatmap.
         let mut min = f64::MAX;
         let mut max = f64::MIN;
-        for y in 0..HEIGHT {
-            for x in 0..WIDTH {
-                let val = map.at(Point { x: x, y: y });
-                if val > max && val != f64::MAX {
-                    max = val;
-                }
-                if val < min {
-                    min = val;
+        if self.show_heatmap {
+            for y in 0..HEIGHT {
+                for x in 0..WIDTH {
+                    let val = map.at(Point { x: x, y: y });
+                    if val > max && val != f64::MAX {
+                        max = val;
+                    }
+                    if val < min {
+                        min = val;
+                    }
                 }
             }
         }
@@ -208,58 +211,35 @@ impl SdlUI {
                 if self.viewport.x + dx >= WIDTH {
                     break;
                 }
-                let val = map.at(Point {
+                let here = Point {
                     x: self.viewport.x + dx,
                     y: self.viewport.y + dy,
-                });
-                let p = if val == f64::MAX {
-                    1.0
-                } else {
-                    (val - min) / (max - min)
                 };
-                render_cell(&mut self.renderer,
-                            self.viewport.x + dx,
-                            self.viewport.y + dy,
-                            Color::RGBA((255.0 * p).round() as u8,
-                                        (255.0 * (1.0 - p)).round() as u8,
-                                        0,
-                                        alpha));
-            }
-        }
-    }
-
-
-    /// Render the world.
-    fn render_world(&mut self, world: &World) {
-        for dy in 0..VIEWPORT_CELL_HEIGHT {
-            if self.viewport.y + dy > HEIGHT {
-                break;
-            }
-            for dx in 0..VIEWPORT_CELL_WIDTH {
-                if self.viewport.x + dx > WIDTH {
-                    break;
-                }
-                let color = if let Some(s) = world.statics
-                    .at(Point {
-                        x: self.viewport.x + dx,
-                        y: self.viewport.y + dy,
-                    }) {
-                    if s.impassable() {
-                        Color::RGB(0, 0, 255)
+                let color = if self.show_heatmap {
+                    let val = map.at(here);
+                    let p = if val == f64::MAX {
+                        1.0
                     } else {
-                        Color::RGB(0, 255, 0)
-                    }
+                        (val - min) / (max - min)
+                    };
+                    Color::RGB((255.0 * p).round() as u8,
+                               (255.0 * (1.0 - p)).round() as u8,
+                               0)
                 } else {
                     Color::RGB(0, 0, 0)
                 };
                 render_cell(&mut self.renderer,
+                            &font,
                             self.viewport.x + dx,
                             self.viewport.y + dy,
+                            world.statics.at(here),
+                            mobs.get(&here),
                             color);
             }
         }
     }
 }
+
 /// Advance to the next active heatmap, or turn it off on the last one.
 fn next_heatmap(heatmap: (Style, MapTag)) -> (Style, MapTag) {
     match heatmap {
@@ -272,22 +252,14 @@ fn next_heatmap(heatmap: (Style, MapTag)) -> (Style, MapTag) {
     }
 }
 
-/// Render some text.
-fn render_text(renderer: &mut Renderer<'static>,
-               font: &Font,
-               text: String,
-               left: i32,
-               top: i32,
-               color: Color) {
-    let surface = font.render(text.as_str()).blended(color).unwrap();
-    let mut texture = renderer.create_texture_from_surface(&surface).unwrap();
-    let TextureQuery { width, height, .. } = texture.query();
-    let rect = Rect::new(left, top, width, height);
-    let _ = renderer.copy(&mut texture, None, Some(rect));
-}
-
 /// Render a cell.
-fn render_cell(renderer: &mut Renderer<'static>, cell_x: usize, cell_y: usize, color: Color) {
+fn render_cell(renderer: &mut Renderer<'static>,
+               font: &Font,
+               cell_x: usize,
+               cell_y: usize,
+               s: Option<Static>,
+               m: Option<&Mobile>,
+               color: Color) {
     let x = MARGIN_PIXEL_LEFT + cell_x * CELL_PIXEL_WIDTH;
     let y = MARGIN_PIXEL_TOP + cell_y * CELL_PIXEL_HEIGHT;
     let rect = Rect::new(x as i32,
@@ -296,4 +268,75 @@ fn render_cell(renderer: &mut Renderer<'static>, cell_x: usize, cell_y: usize, c
                          CELL_PIXEL_HEIGHT as u32);
     renderer.set_draw_color(color);
     let _ = renderer.fill_rect(rect);
+
+    match (m, s) {
+        (Some(mob), _) => render_mobile(renderer, font, rect, mob),
+        (_, Some(stat)) => render_static(renderer, font, rect, &stat),
+        _ => {}
+    }
+}
+
+/// Render a static.
+fn render_static(renderer: &mut Renderer<'static>, font: &Font, rect: Rect, s: &Static) {
+    let (ch, foreground, background) = match *s {
+        Static::Wall => ('#', Color::RGB(255,255,255), Some(Color::RGB(133,94,66))), // "white" on "dark wood"
+        Static::Door => ('║', Color::RGB(0,0,0), Some(Color::RGB(133,94,66))), // "black" on "dark wood"
+    };
+    render_occupant(renderer, font, rect, ch, foreground, background)
+}
+
+/// Render a mobile.
+fn render_mobile(_: &mut Renderer<'static>, _: &Font, _: Rect, _: &Mobile) {
+    // They don't exist yet!
+}
+
+/// Render an occupant of a cell.
+fn render_occupant(renderer: &mut Renderer<'static>, font: &Font, rect: Rect, ch: char, foreground: Color, background: Option<Color>) {
+    if let Some(bg) = background {
+        renderer.set_draw_color(bg);
+        let _ = renderer.fill_rect(rect);
+    }
+
+    let surface = font.render(ch.to_string().as_str()).blended(foreground).unwrap();
+    let mut texture = renderer.create_texture_from_surface(&surface).unwrap();
+    render_in(renderer, &mut texture, rect, true, true);
+}
+
+/// Copy a texture into a bounding box, scaling it if necessary.
+fn render_in(renderer: &mut Renderer<'static>, texture: &mut Texture, bbox: Rect, center_horiz:bool, center_vert:bool) {
+    let TextureQuery { width, height, .. } = texture.query();
+
+    // The target to render into.
+    let mut target = Rect::new(bbox.x(), bbox.y(), width, height);
+
+    // Scale down.
+    let wr = width as f32 / bbox.width() as f32;
+    let hr = height as f32 / bbox.height() as f32;
+    if width > bbox.width() || height > bbox.height() {
+        println!("WARN: scaling texture down, this will look worse!");
+        if width > height {
+            target.set_width(bbox.width());
+            target.set_height((height as f32 / wr) as u32);
+        } else {
+            target.set_width((width as f32 / hr) as u32);
+            target.set_height(bbox.height());
+        }
+    }
+
+    // Center horizontally.
+    if center_horiz && target.width() < bbox.width() {
+        let x = target.x();
+        let w = target.width();
+        target.set_x(x + (bbox.width() - w) as i32 / 2);
+    }
+
+    // Center vertically.
+    if center_vert && target.height() < bbox.height() {
+        let y = target.y();
+        let h = target.height();
+        target.set_y(y + (bbox.height() - h) as i32 / 2);
+    }
+
+    // Render the texture in the target rect.
+    let _ = renderer.copy(texture, None, Some(target));
 }
