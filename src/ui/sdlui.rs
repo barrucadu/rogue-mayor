@@ -20,34 +20,28 @@ use types::*;
 use ui::UI;
 
 // The font
-const FONT_PATH: &'static str = "font/Anonymous Pro.ttf";
-const FONT_SIZE: u16 = 24;
+const FONT_PATH: &'static str = "FSEX300.ttf";
+const FONT_SIZE: u16 = 12;
 
 // Size of the visible viewport, in grid cells.
-const VIEWPORT_CELL_HEIGHT: usize = 100;
-const VIEWPORT_CELL_WIDTH: usize = 200;
+const VIEWPORT_CELL_HEIGHT: usize = 50;
+const VIEWPORT_CELL_WIDTH: usize = 100;
 
-// Size of a cell, in picels.
-const CELL_PIXEL_HEIGHT: usize = 8;
-const CELL_PIXEL_WIDTH: usize = 8;
+// Everything is done in terms of rows and columns, which are made of
+// fixed-size cells.
+const CELL_PIXEL_HEIGHT: usize = 16;
+const CELL_PIXEL_WIDTH: usize = 16;
 
-// Size of margins around viewport.
-const MARGIN_PIXEL_TOP: usize = 80;
-const MARGIN_PIXEL_LEFT: usize = 0;
-const MARGIN_PIXEL_BOTTOM: usize = 0;
-const MARGIN_PIXEL_RIGHT: usize = 0;
+// Number of rows gap between log entries and the map.
+const LOG_GAP: usize = 2;
 
-// Number of log entries to fit in the top margin.
-const LOG_ENTRIES_VISIBLE: usize = 3;
+// Number of log entries to display above the map.
+const LOG_ENTRIES_VISIBLE: usize = 7;
 
 // Some helpful derived stuff
-const SCREEN_WIDTH: u32 = (MARGIN_PIXEL_LEFT + MARGIN_PIXEL_BOTTOM +
-                           CELL_PIXEL_WIDTH * VIEWPORT_CELL_WIDTH) as u32;
+const SCREEN_WIDTH: u32 = (CELL_PIXEL_WIDTH * VIEWPORT_CELL_WIDTH) as u32;
 const SCREEN_HEIGHT: u32 =
-    (MARGIN_PIXEL_TOP + MARGIN_PIXEL_BOTTOM + CELL_PIXEL_HEIGHT * VIEWPORT_CELL_HEIGHT) as u32;
-const CONTENT_WIDTH: u32 = SCREEN_WIDTH - MARGIN_PIXEL_LEFT as u32 - MARGIN_PIXEL_RIGHT as u32;
-const CONTENT_HEIGHT: u32 = SCREEN_HEIGHT - MARGIN_PIXEL_TOP as u32 - MARGIN_PIXEL_BOTTOM as u32;
-const LOG_ENTRY_HEIGHT: u32 = (MARGIN_PIXEL_TOP / LOG_ENTRIES_VISIBLE) as u32;
+    (CELL_PIXEL_HEIGHT * (LOG_ENTRIES_VISIBLE + LOG_GAP + VIEWPORT_CELL_HEIGHT)) as u32;
 
 /// A user interface using SDL2.
 #[allow(missing_debug_implementations,missing_copy_implementations)]
@@ -159,12 +153,10 @@ impl SdlUI {
         let color = Color::RGB(255, 255, 255);
         let mut done = 0;
         for msg in world.messages.iter().take(LOG_ENTRIES_VISIBLE) {
-            let bbox = Rect::new(
-                MARGIN_PIXEL_LEFT as i32,
-                ((LOG_ENTRIES_VISIBLE - done - 1) as u32 * LOG_ENTRY_HEIGHT) as i32,
-                CONTENT_WIDTH,
-                LOG_ENTRY_HEIGHT
-            );
+            let bbox = Rect::new(0,
+                                 ((LOG_ENTRIES_VISIBLE - done - 1) * CELL_PIXEL_HEIGHT) as i32,
+                                 SCREEN_WIDTH,
+                                 CELL_PIXEL_HEIGHT as u32);
             let surface = font.render(msg.msg.as_str()).blended(color).unwrap();
             let mut texture = self.renderer.create_texture_from_surface(&surface).unwrap();
             render_in(&mut self.renderer, &mut texture, bbox, false, true);
@@ -260,8 +252,8 @@ fn render_cell(renderer: &mut Renderer<'static>,
                s: Option<Static>,
                m: Option<&Mobile>,
                color: Color) {
-    let x = MARGIN_PIXEL_LEFT + cell_x * CELL_PIXEL_WIDTH;
-    let y = MARGIN_PIXEL_TOP + cell_y * CELL_PIXEL_HEIGHT;
+    let x = cell_x * CELL_PIXEL_WIDTH;
+    let y = (LOG_ENTRIES_VISIBLE + LOG_GAP + cell_y) * CELL_PIXEL_HEIGHT;
     let rect = Rect::new(x as i32,
                          y as i32,
                          CELL_PIXEL_WIDTH as u32,
@@ -279,8 +271,10 @@ fn render_cell(renderer: &mut Renderer<'static>,
 /// Render a static.
 fn render_static(renderer: &mut Renderer<'static>, font: &Font, rect: Rect, s: &Static) {
     let (ch, foreground, background) = match *s {
-        Static::Wall => ('#', Color::RGB(255,255,255), Some(Color::RGB(133,94,66))), // "white" on "dark wood"
-        Static::Door => ('║', Color::RGB(0,0,0), Some(Color::RGB(133,94,66))), // "black" on "dark wood"
+        // "white" on "dark wood"
+        Static::Wall => ('#', Color::RGB(255, 255, 255), Some(Color::RGB(133, 94, 66))),
+        // "black" on "dark wood"
+        Static::Door => ('║', Color::RGB(0, 0, 0), Some(Color::RGB(133, 94, 66))),
     };
     render_occupant(renderer, font, rect, ch, foreground, background)
 }
@@ -291,7 +285,12 @@ fn render_mobile(_: &mut Renderer<'static>, _: &Font, _: Rect, _: &Mobile) {
 }
 
 /// Render an occupant of a cell.
-fn render_occupant(renderer: &mut Renderer<'static>, font: &Font, rect: Rect, ch: char, foreground: Color, background: Option<Color>) {
+fn render_occupant(renderer: &mut Renderer<'static>,
+                   font: &Font,
+                   rect: Rect,
+                   ch: char,
+                   foreground: Color,
+                   background: Option<Color>) {
     if let Some(bg) = background {
         renderer.set_draw_color(bg);
         let _ = renderer.fill_rect(rect);
@@ -303,40 +302,40 @@ fn render_occupant(renderer: &mut Renderer<'static>, font: &Font, rect: Rect, ch
 }
 
 /// Copy a texture into a bounding box, scaling it if necessary.
-fn render_in(renderer: &mut Renderer<'static>, texture: &mut Texture, bbox: Rect, center_horiz:bool, center_vert:bool) {
-    let TextureQuery { width, height, .. } = texture.query();
-
-    // The target to render into.
-    let mut target = Rect::new(bbox.x(), bbox.y(), width, height);
+fn render_in(renderer: &mut Renderer<'static>,
+             texture: &mut Texture,
+             bbox: Rect,
+             center_horiz: bool,
+             center_vert: bool) {
+    let TextureQuery { mut width, mut height, .. } = texture.query();
 
     // Scale down.
     let wr = width as f32 / bbox.width() as f32;
     let hr = height as f32 / bbox.height() as f32;
     if width > bbox.width() || height > bbox.height() {
-        println!("WARN: scaling texture down, this will look worse!");
-        if width > height {
-            target.set_width(bbox.width());
-            target.set_height((height as f32 / wr) as u32);
+        if wr > hr {
+            width = bbox.width();
+            height = (height as f32 / wr).round() as u32;
         } else {
-            target.set_width((width as f32 / hr) as u32);
-            target.set_height(bbox.height());
+            width = (width as f32 / hr).round() as u32;
+            height = bbox.height();
         }
     }
 
     // Center horizontally.
-    if center_horiz && target.width() < bbox.width() {
-        let x = target.x();
-        let w = target.width();
-        target.set_x(x + (bbox.width() - w) as i32 / 2);
-    }
+    let x = if center_horiz && width < bbox.width() {
+        bbox.x() + (bbox.width() - width) as i32 / 2
+    } else {
+        bbox.x()
+    };
 
     // Center vertically.
-    if center_vert && target.height() < bbox.height() {
-        let y = target.y();
-        let h = target.height();
-        target.set_y(y + (bbox.height() - h) as i32 / 2);
-    }
+    let y = if center_vert && height < bbox.height() {
+        bbox.y() + (bbox.height() - height) as i32 / 2
+    } else {
+        bbox.y()
+    };
 
     // Render the texture in the target rect.
-    let _ = renderer.copy(texture, None, Some(target));
+    let _ = renderer.copy(texture, None, Some(Rect::new(x, y, width, height)));
 }
