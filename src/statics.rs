@@ -5,9 +5,17 @@
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub enum Static {
     // impassable
+    /// The dungeon entrance: provides adventure.
+    Dungeon,
+    /// The counter of a general store: provides trade.
+    GStoreCounter,
+    /// The counter of an inn: provides sustenance.
+    InnCounter,
     /// Solid walls
     Wall,
     // passable
+    /// A bed: provides rest.
+    Bed,
     /// Doors
     Door,
 }
@@ -16,8 +24,8 @@ impl Static {
     /// If true, this acts as an obstruction to mobiles and heatmap flow.
     pub fn impassable(&self) -> bool {
         match *self {
-            Static::Wall => true,
-            Static::Door => false,
+            Static::Dungeon | Static::GStoreCounter | Static::InnCounter | Static::Wall => true,
+            Static::Bed | Static::Door => false,
         }
     }
 }
