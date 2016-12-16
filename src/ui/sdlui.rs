@@ -271,9 +271,9 @@ fn render_cell(renderer: &mut Renderer<'static>,
 /// Render a static.
 fn render_static(renderer: &mut Renderer<'static>, font: &Font, rect: Rect, s: &Static) {
     let (ch, foreground, background) = match *s {
-        // "white" on "dark wood"
-        Static::Wall => ('#', Color::RGB(255, 255, 255), Some(Color::RGB(133, 94, 66))),
-        // "black" on "dark wood"
+        // black on dark wood
+        Static::Wall => ('#', Color::RGB(0, 0, 0), Some(Color::RGB(133, 94, 66))),
+        // black on dark wood
         Static::Door => ('║', Color::RGB(0, 0, 0), Some(Color::RGB(133, 94, 66))),
     };
     render_occupant(renderer, font, rect, ch, foreground, background)
