@@ -4,6 +4,7 @@
 use constants::*;
 use dijkstra_map::*;
 use grid::*;
+use statics::*;
 use std::collections::BTreeMap;
 use std::f64;
 use types::*;
@@ -104,10 +105,25 @@ impl Mobile {
     /// Interact with a desired thing at a position reachable from the current one.
     fn interact_at_point(&mut self,
                          _: Point,
-                         _: Point,
+                         pos: Point,
                          _: &mut BTreeMap<Point, Mobile>,
                          _: &mut Maps,
-                         _: &mut World) {
-        unimplemented!()
+                         world: &mut World) {
+        match world.statics.at(pos) {
+            Some(Static::Bed) => self.satisfy_desire(MapTag::Rest, 1.0),
+            Some(Static::Dungeon) => self.satisfy_desire(MapTag::Adventure, 1.0),
+            Some(Static::GStoreCounter) => self.satisfy_desire(MapTag::GeneralStore, 1.0),
+            Some(Static::InnCounter) => self.satisfy_desire(MapTag::Sustenance, 1.0),
+            _ => {}
+        }
+    }
+
+    /// Reduce the weight of a desire by a certain amount, to a
+    /// minimum of 0.
+    fn satisfy_desire(&mut self, tag: MapTag, by: f64) {
+        if let Some(old) = self.desires.clone().get(&tag) {
+            let new = old - by;
+            let _ = self.desires.insert(tag, if new < 0.0 { 0.0 } else { new });
+        }
     }
 }
