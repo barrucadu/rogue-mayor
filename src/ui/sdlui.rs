@@ -273,7 +273,7 @@ fn render_static(renderer: &mut Renderer<'static>, font: &Font, rect: Rect, s: &
     let (ch, foreground, background) = match *s {
         Static::GStoreCounter => ('', Color::RGB(133, 94, 66), None),
         Static::InnCounter => ('', Color::RGB(133, 94, 66), None),
-        Static::Dungeon => ('𝔇', Color::RGB(129, 26, 26), Some(Color::RGB(66, 66, 111))),
+        Static::Dungeon => ('ห', Color::RGB(129, 26, 26), Some(Color::RGB(66, 66, 111))),
         Static::Bed => ('Θ', Color::RGB(166, 128, 100), None),
         Static::Wall => ('#', Color::RGB(0, 0, 0), Some(Color::RGB(133, 94, 66))),
         Static::Door => ('║', Color::RGB(0, 0, 0), Some(Color::RGB(133, 94, 66))),
