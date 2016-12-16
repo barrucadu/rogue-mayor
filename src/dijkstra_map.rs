@@ -70,6 +70,14 @@ impl Maps {
             MapTag::Sustenance => &mut self.sustenance,
         }
     }
+
+    /// Recompute all maps. This should be called when a new obstruction is added.
+    pub fn rebuild_all(&mut self, world: &World) {
+        self.adventure.rebuild_from_sources(world);
+        self.general_store.rebuild_from_sources(world);
+        self.rest.rebuild_from_sources(world);
+        self.sustenance.rebuild_from_sources(world);
+    }
 }
 
 /// Symbolic names for the different maps.
@@ -138,8 +146,8 @@ impl Map {
         self.rebuild_from_sources(world);
     }
 
-    /// Rebuild the map entirely from the sources.
-    fn rebuild_from_sources(&mut self, world: &World) {
+    /// Recompute the map. This should be called when new obstructions are added.
+    pub fn rebuild_from_sources(&mut self, world: &World) {
         // Reset the weights.
         for y in 0..HEIGHT {
             for x in 0..WIDTH {
