@@ -11,6 +11,7 @@ use rogue_mayor::constants::*;
 use rogue_mayor::dijkstra_map::*;
 use rogue_mayor::grid::*;
 use rogue_mayor::mobiles::*;
+use rogue_mayor::statics::*;
 use rogue_mayor::types::*;
 use rogue_mayor::ui::*;
 use rogue_mayor::ui::sdlui::*;
@@ -34,11 +35,16 @@ fn main() {
 
             // Testing stuff
             for x in 0..WIDTH - 1 {
-                world.occupied.set(Point { x: x, y: 5 }, true);
+                world.statics.set(Point { x: x, y: 5 }, Some(Static::Wall));
             }
             for y in HEIGHT / 2 - HEIGHT / 3..HEIGHT / 2 + HEIGHT / 2 {
-                world.occupied.set(Point { x: 10, y: y }, true);
+                world.statics.set(Point { x: 10, y: y }, Some(Static::Wall));
             }
+            world.statics.set(Point {
+                                  x: WIDTH - 1,
+                                  y: 5,
+                              },
+                              Some(Static::Door));
             maps.mutget(MapTag::Adventure).add_source(Point { x: 50, y: 25 }, &world);
             maps.mutget(MapTag::Adventure).add_source(Point { x: 0, y: 0 }, &world);
 

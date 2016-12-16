@@ -10,6 +10,7 @@ pub mod constants;
 pub mod dijkstra_map;
 pub mod grid;
 pub mod mobiles;
+pub mod statics;
 pub mod types;
 pub mod ui;
 pub mod utils;

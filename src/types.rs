@@ -2,6 +2,7 @@
 //! their own modules.
 
 use grid::*;
+use statics::*;
 use std::collections::VecDeque;
 
 /// A command from the user.
@@ -17,8 +18,8 @@ pub enum Command {
 
 /// The state of the vsible map and the larger game world.
 pub struct World {
-    /// Occupancy. This is a very simple temporary representation just to test the heatmaps.
-    pub occupied: Grid<bool>,
+    /// Things which have a fixed presence and location in the world.
+    pub statics: Grid<Option<Static>>,
     /// Message log.
     pub messages: VecDeque<Message>,
 }
@@ -27,7 +28,7 @@ impl World {
     /// Construct a new world.
     pub fn new() -> World {
         World {
-            occupied: Grid::new(false),
+            statics: Grid::new(None),
             messages: VecDeque::new(),
         }
     }

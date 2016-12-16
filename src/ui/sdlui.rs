@@ -239,11 +239,16 @@ impl SdlUI {
                 if self.viewport.x + dx > WIDTH {
                     break;
                 }
-                let color = if world.occupied.at(Point {
-                    x: self.viewport.x + dx,
-                    y: self.viewport.y + dy,
-                }) {
-                    Color::RGB(255, 255, 255)
+                let color = if let Some(s) = world.statics
+                    .at(Point {
+                        x: self.viewport.x + dx,
+                        y: self.viewport.y + dy,
+                    }) {
+                    if s.impassable() {
+                        Color::RGB(0, 0, 255)
+                    } else {
+                        Color::RGB(0, 255, 0)
+                    }
                 } else {
                     Color::RGB(0, 0, 0)
                 };

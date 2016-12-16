@@ -31,5 +31,5 @@ pub fn signed_add(u: usize, s: i8) -> usize {
 
 /// Check if a position is occupied.
 pub fn is_occupied(pos: Point, mobs: &BTreeMap<Point, Mobile>, world: &World) -> bool {
-    mobs.get(&pos).is_some() || world.occupied.at(pos)
+    mobs.get(&pos).is_some() || world.statics.at(pos).map_or(false, |s| s.impassable())
 }
