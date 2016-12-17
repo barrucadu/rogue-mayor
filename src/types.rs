@@ -1,6 +1,7 @@
 //! All the types. This is just a placeholder module as things get implemented and spread out into
 //! their own modules.
 
+use dijkstra_map::*;
 use grid::*;
 use statics::*;
 use std::collections::VecDeque;
@@ -9,6 +10,8 @@ use templates::*;
 /// A command from the user.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Command {
+    /// Build the active template at the world's cursor.
+    BuildTemplate,
     /// Terminate.
     Quit,
     /// Render the UI without advancing a turn.
@@ -49,6 +52,21 @@ impl World {
 
     /// Do a turn.
     pub fn step(&mut self) {}
+
+    /// Build the active template at the cursor.
+    pub fn build(&mut self, maps: &mut Maps) {
+        if let Some(ref tpl) = self.template {
+            for (p, &(s, t)) in &tpl.components {
+                let pos = p.offset(self.cursor);
+                self.statics.set(pos, Some(s));
+                if let Some(tag) = t {
+                    // Rebuild the maps at the end.
+                    maps.mutget(tag).add_source_no_rebuild(pos);
+                }
+            }
+            maps.rebuild_all(self);
+        }
+    }
 }
 
 /// A message consists of some text and an optional location. The UI intelligently handle the

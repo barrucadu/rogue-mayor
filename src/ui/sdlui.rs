@@ -144,6 +144,9 @@ impl UI for SdlUI {
             keydown!(LAlt) | keydown!(RAlt) => flag_set!(is_scrolling),
             keyup!(LAlt) | keyup!(RAlt) => flag_unset!(is_scrolling),
 
+            // Building
+            keydown!(Return) => Command::BuildTemplate,
+
             // Cursor and Viewport
             Event::MouseButtonDown { x, y, mouse_btn: MouseButton::Left, .. } => {
                 self.is_mousing = !self.is_mousing;

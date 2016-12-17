@@ -65,6 +65,10 @@ fn main() {
                     // Prompt for user input and perform the desired action.
                     let action = ui.input(world.cursor);
                     match action {
+                        Command::BuildTemplate => {
+                            world.build(&mut maps);
+                            break 'ui;
+                        }
                         Command::Quit => break 'game,
                         Command::Render => {}
                         Command::SetCursorTo(c) => world.cursor = c,
