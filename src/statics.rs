@@ -2,7 +2,7 @@
 //! all fit into this category.
 
 /// Things which have a fixed presence in the world, like walls.
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Static {
     // impassable
     /// The dungeon entrance: provides adventure.
