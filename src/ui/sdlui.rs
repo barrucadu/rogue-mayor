@@ -366,10 +366,7 @@ impl SdlUI {
             render_cell(&mut self.renderer,
                         &font,
                         self.viewport,
-                        Point {
-                            x: p.x + cursor.x,
-                            y: p.y + cursor.y,
-                        },
+                        p.offset(cursor),
                         Some(s),
                         None,
                         None);

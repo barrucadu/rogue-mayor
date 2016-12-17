@@ -11,6 +11,16 @@ pub struct Point {
     pub y: usize,
 }
 
+impl Point {
+    /// Offset one point by another.
+    pub fn offset(&self, off: Point) -> Point {
+        Point {
+            x: self.x + off.x,
+            y: self.y + off.y,
+        }
+    }
+}
+
 /// A grid representing some state of the world.
 pub struct Grid<T> {
     pub grid: Box<[[T; WIDTH]; HEIGHT]>,
