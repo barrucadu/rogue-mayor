@@ -66,6 +66,8 @@ pub struct SdlUI {
     active_heatmap: (Style, MapTag),
     /// Whether the cursor is being moved by the mouse or not.
     is_mousing_cursor: bool,
+    /// Whether we're zooming around or not (shift held down).
+    is_zooming_cursor: bool,
 }
 
 /// Debugging display: a heatmap style to render.
@@ -121,30 +123,42 @@ impl UI for SdlUI {
                     Command::Render
                 }
             }
+            Event::KeyDown { keycode: Some(Keycode::LShift), .. } |
+            Event::KeyDown { keycode: Some(Keycode::RShift), .. } => {
+                self.is_zooming_cursor = true;
+                self.input(cursor)
+            }
+            Event::KeyUp { keycode: Some(Keycode::LShift), .. } |
+            Event::KeyUp { keycode: Some(Keycode::RShift), .. } => {
+                self.is_zooming_cursor = false;
+                self.input(cursor)
+            }
             Event::MouseMotion { x, y, .. } if self.is_mousing_cursor => {
                 Command::SetCursorTo(cursor_from_mouse(self.viewport, x, y))
             }
             Event::KeyDown { keycode: Some(Keycode::Up), .. } => {
                 Command::SetCursorTo(Point {
                     x: cursor.x,
-                    y: cursor.y.saturating_sub(1),
+                    y: cursor.y.saturating_sub(if self.is_zooming_cursor { 10 } else { 1 }),
                 })
             }
             Event::KeyDown { keycode: Some(Keycode::Down), .. } => {
                 Command::SetCursorTo(Point {
                     x: cursor.x,
-                    y: min(HEIGHT, cursor.y.saturating_add(1)),
+                    y: min(HEIGHT,
+                           cursor.y.saturating_add(if self.is_zooming_cursor { 10 } else { 1 })),
                 })
             }
             Event::KeyDown { keycode: Some(Keycode::Left), .. } => {
                 Command::SetCursorTo(Point {
-                    x: cursor.x.saturating_sub(1),
+                    x: cursor.x.saturating_sub(if self.is_zooming_cursor { 10 } else { 1 }),
                     y: cursor.y,
                 })
             }
             Event::KeyDown { keycode: Some(Keycode::Right), .. } => {
                 Command::SetCursorTo(Point {
-                    x: min(WIDTH, cursor.x.saturating_add(1)),
+                    x: min(WIDTH,
+                           cursor.x.saturating_add(if self.is_zooming_cursor { 10 } else { 1 })),
                     y: cursor.y,
                 })
             }
@@ -200,6 +214,7 @@ impl SdlUI {
             show_heatmap: false,
             active_heatmap: (Style::Approach, MapTag::Adventure),
             is_mousing_cursor: false,
+            is_zooming_cursor: false,
         })
     }
 
