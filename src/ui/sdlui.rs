@@ -18,6 +18,7 @@ use std::cmp;
 use std::collections::BTreeMap;
 use std::f64;
 use std::path::Path;
+use templates::*;
 use types::*;
 use ui::UI;
 
@@ -106,6 +107,11 @@ impl UI for SdlUI {
 
         // Render the world OR heatmap.
         self.render_world(mobs, maps, world);
+
+        // Render the selected template.
+        if let Some(ref tpl) = world.template {
+            self.render_template(world.cursor, &tpl)
+        }
 
         // Display the cursor on top of everything else.
         self.render_cursor(world.cursor);
@@ -348,8 +354,25 @@ impl SdlUI {
                             here,
                             world.statics.at(here),
                             mobs.get(&here),
-                            color);
+                            Some(color));
             }
+        }
+    }
+
+    /// Render a template at the cursor.
+    fn render_template(&mut self, cursor: Point, tpl: &Template) {
+        let font = self.ttf.load_font(Path::new(FONT_PATH), FONT_SIZE).unwrap();
+        for (p, &(s, _)) in &tpl.components {
+            render_cell(&mut self.renderer,
+                        &font,
+                        self.viewport,
+                        Point {
+                            x: p.x + cursor.x,
+                            y: p.y + cursor.y,
+                        },
+                        Some(s),
+                        None,
+                        None);
         }
     }
 
@@ -389,10 +412,12 @@ fn render_cell(renderer: &mut Renderer<'static>,
                cell: Point,
                s: Option<Static>,
                m: Option<&Mobile>,
-               color: Color) {
+               color: Option<Color>) {
     let rect = cell_rect(viewport, cell);
-    renderer.set_draw_color(color);
-    let _ = renderer.fill_rect(rect);
+    if let Some(c) = color {
+        renderer.set_draw_color(c);
+        let _ = renderer.fill_rect(rect);
+    }
 
     match (m, s) {
         (Some(mob), _) => render_mobile(renderer, font, rect, mob),
