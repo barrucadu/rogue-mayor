@@ -27,6 +27,7 @@ fn main() {
             let mut maps: Maps = Maps::new();
             let mut mobs: BTreeMap<Point, Mobile> = BTreeMap::new();
             let mut world: World = World::new();
+            world.cursor = SdlUI::initial_cursor();
 
             // Everyone likes welcomes.
             world.log(Message {
@@ -62,17 +63,18 @@ fn main() {
                 }
                 mobs = new_mobs;
 
-                let mut action = Command::Render;
-                'ui: while action == Command::Render {
+                'ui: loop {
                     // Render the world now, so the player has an up-to-date view before they are
                     // prompted for their next action.
                     ui.render(&mobs, &maps, &world);
 
                     // Prompt for user input and perform the desired action.
-                    action = ui.input();
+                    let action = ui.input(world.cursor);
                     match action {
-                        Command::Skip | Command::Render => {}
                         Command::Quit => break 'game,
+                        Command::Render => {}
+                        Command::SetCursorTo(c) => world.cursor = c,
+                        Command::Skip => break 'ui,
                     }
 
                     // Testing the message log.

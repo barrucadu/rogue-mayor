@@ -8,11 +8,13 @@ use sdl2;
 use sdl2::{EventPump, Sdl, VideoSubsystem};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
+use sdl2::mouse::MouseButton;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::{Renderer, Texture, TextureQuery};
 use sdl2::ttf::{Font, Sdl2TtfContext};
 use statics::*;
+use std::cmp::min;
 use std::collections::BTreeMap;
 use std::f64;
 use std::path::Path;
@@ -62,6 +64,8 @@ pub struct SdlUI {
     show_heatmap: bool,
     /// Debugging display: the heatmap to render.
     active_heatmap: (Style, MapTag),
+    /// Whether the cursor is being moved by the mouse or not.
+    is_mousing_cursor: bool,
 }
 
 /// Debugging display: a heatmap style to render.
@@ -76,6 +80,13 @@ enum Style {
 }
 
 impl UI for SdlUI {
+    fn initial_cursor() -> Point {
+        Point {
+            x: VIEWPORT_CELL_WIDTH / 2,
+            y: VIEWPORT_CELL_HEIGHT / 2,
+        }
+    }
+
     fn render(&mut self, mobs: &BTreeMap<Point, Mobile>, maps: &Maps, world: &World) {
         self.renderer.set_draw_color(Color::RGB(0, 0, 0));
         self.renderer.clear();
@@ -86,16 +97,59 @@ impl UI for SdlUI {
         // Render the world OR heatmap.
         self.render_world(mobs, maps, world);
 
+        // Display the cursor on top of everything else.
+        self.render_cursor(world.cursor);
+
         // Finally, display everything.
         self.renderer.present();
     }
 
-    fn input(&mut self) -> Command {
+    fn input(&mut self, cursor: Point) -> Command {
         match self.events.wait_event() {
+            // Exit
             Event::Quit { .. } |
             Event::AppTerminating { .. } |
             Event::KeyDown { keycode: Some(Keycode::Escape), .. } => Command::Quit,
             Event::KeyDown { keycode: Some(Keycode::Space), .. } => Command::Skip,
+
+            // Cursor
+            Event::MouseButtonDown { x, y, mouse_btn: MouseButton::Left, .. } => {
+                self.is_mousing_cursor = !self.is_mousing_cursor;
+                if self.is_mousing_cursor {
+                    Command::SetCursorTo(cursor_from_mouse(self.viewport, x, y))
+                } else {
+                    Command::Render
+                }
+            }
+            Event::MouseMotion { x, y, .. } if self.is_mousing_cursor => {
+                Command::SetCursorTo(cursor_from_mouse(self.viewport, x, y))
+            }
+            Event::KeyDown { keycode: Some(Keycode::Up), .. } => {
+                Command::SetCursorTo(Point {
+                    x: cursor.x,
+                    y: cursor.y.saturating_sub(1),
+                })
+            }
+            Event::KeyDown { keycode: Some(Keycode::Down), .. } => {
+                Command::SetCursorTo(Point {
+                    x: cursor.x,
+                    y: min(HEIGHT, cursor.y.saturating_add(1)),
+                })
+            }
+            Event::KeyDown { keycode: Some(Keycode::Left), .. } => {
+                Command::SetCursorTo(Point {
+                    x: cursor.x.saturating_sub(1),
+                    y: cursor.y,
+                })
+            }
+            Event::KeyDown { keycode: Some(Keycode::Right), .. } => {
+                Command::SetCursorTo(Point {
+                    x: min(WIDTH, cursor.x.saturating_add(1)),
+                    y: cursor.y,
+                })
+            }
+
+            // Debug
             Event::KeyDown { keycode: Some(Keycode::F5), .. } => Command::Render,
             Event::KeyDown { keycode: Some(Keycode::Tab), .. } => {
                 self.active_heatmap = next_heatmap(self.active_heatmap);
@@ -107,7 +161,9 @@ impl UI for SdlUI {
                 println!("DEBUG: toggling heatmap to {:?}", self.show_heatmap);
                 Command::Render
             }
-            _ => self.input(), // Ignore unexpected input.
+
+            // Ignore unexpected input.
+            _ => self.input(cursor),
         }
     }
 }
@@ -143,7 +199,25 @@ impl SdlUI {
             ttf: ttf,
             show_heatmap: false,
             active_heatmap: (Style::Approach, MapTag::Adventure),
+            is_mousing_cursor: false,
         })
+    }
+
+    /// Render the cursor.
+    fn render_cursor(&mut self, cursor: Point) {
+        let font = self.ttf.load_font(Path::new(FONT_PATH), FONT_SIZE).unwrap();
+        let color = if self.is_mousing_cursor {
+            Color::RGB(150, 150, 255)
+        } else {
+            Color::RGB(255, 255, 255)
+        };
+        let surface = font.render("@").blended(color).unwrap();
+        let mut texture = self.renderer.create_texture_from_surface(&surface).unwrap();
+        render_in(&mut self.renderer,
+                  &mut texture,
+                  cell_rect(self.viewport, cursor),
+                  true,
+                  true);
     }
 
     /// Render the message log.
@@ -222,8 +296,8 @@ impl SdlUI {
                 };
                 render_cell(&mut self.renderer,
                             &font,
-                            self.viewport.x + dx,
-                            self.viewport.y + dy,
+                            self.viewport,
+                            here,
                             world.statics.at(here),
                             mobs.get(&here),
                             color);
@@ -247,17 +321,12 @@ fn next_heatmap(heatmap: (Style, MapTag)) -> (Style, MapTag) {
 /// Render a cell.
 fn render_cell(renderer: &mut Renderer<'static>,
                font: &Font,
-               cell_x: usize,
-               cell_y: usize,
+               viewport: Point,
+               cell: Point,
                s: Option<Static>,
                m: Option<&Mobile>,
                color: Color) {
-    let x = cell_x * CELL_PIXEL_WIDTH;
-    let y = (LOG_ENTRIES_VISIBLE + LOG_GAP + cell_y) * CELL_PIXEL_HEIGHT;
-    let rect = Rect::new(x as i32,
-                         y as i32,
-                         CELL_PIXEL_WIDTH as u32,
-                         CELL_PIXEL_HEIGHT as u32);
+    let rect = cell_rect(viewport, cell);
     renderer.set_draw_color(color);
     let _ = renderer.fill_rect(rect);
 
@@ -340,4 +409,24 @@ fn render_in(renderer: &mut Renderer<'static>,
 
     // Render the texture in the target rect.
     let _ = renderer.copy(texture, None, Some(Rect::new(x, y, width, height)));
+}
+
+/// Get the `Rect` for a cell.
+fn cell_rect(viewport: Point, cell: Point) -> Rect {
+    let x = (cell.x - viewport.x) * CELL_PIXEL_WIDTH;
+    let y = (LOG_ENTRIES_VISIBLE + LOG_GAP + cell.y - viewport.y) * CELL_PIXEL_HEIGHT;
+    Rect::new(x as i32,
+              y as i32,
+              CELL_PIXEL_WIDTH as u32,
+              CELL_PIXEL_HEIGHT as u32)
+}
+
+/// Get the cursor position from the mouse.
+fn cursor_from_mouse(viewport: Point, x: i32, y: i32) -> Point {
+    let cell_x = x as usize / CELL_PIXEL_WIDTH;
+    let cell_y = (y as usize / CELL_PIXEL_HEIGHT).saturating_sub(LOG_ENTRIES_VISIBLE + LOG_GAP);
+    Point {
+        x: cell_x + viewport.x,
+        y: cell_y + viewport.y,
+    }
 }

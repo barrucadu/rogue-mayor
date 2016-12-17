@@ -12,6 +12,8 @@ pub enum Command {
     Quit,
     /// Render the UI without advancing a turn.
     Render,
+    /// Change the selected cell and re-render the UI without advancing a turn.
+    SetCursorTo(Point),
     /// Advance one turn without doing any user action.
     Skip,
 }
@@ -22,6 +24,8 @@ pub struct World {
     pub statics: Grid<Option<Static>>,
     /// Message log.
     pub messages: VecDeque<Message>,
+    /// Selected cell.
+    pub cursor: Point,
 }
 
 impl World {
@@ -30,6 +34,7 @@ impl World {
         World {
             statics: Grid::new(None),
             messages: VecDeque::new(),
+            cursor: Point { x: 0, y: 0 },
         }
     }
 
