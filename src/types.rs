@@ -4,6 +4,7 @@
 use grid::*;
 use statics::*;
 use std::collections::VecDeque;
+use templates::*;
 
 /// A command from the user.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -26,6 +27,8 @@ pub struct World {
     pub messages: VecDeque<Message>,
     /// Selected cell.
     pub cursor: Point,
+    /// Selected template.
+    pub template: Option<Template>,
 }
 
 impl World {
@@ -35,6 +38,7 @@ impl World {
             statics: Grid::new(None),
             messages: VecDeque::new(),
             cursor: Point { x: 0, y: 0 },
+            template: None,
         }
     }
 
