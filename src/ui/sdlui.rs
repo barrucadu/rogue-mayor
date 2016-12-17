@@ -14,7 +14,7 @@ use sdl2::rect::Rect;
 use sdl2::render::{Renderer, Texture, TextureQuery};
 use sdl2::ttf::{Font, Sdl2TtfContext};
 use statics::*;
-use std::cmp::min;
+use std::cmp;
 use std::collections::BTreeMap;
 use std::f64;
 use std::path::Path;
@@ -115,12 +115,28 @@ impl UI for SdlUI {
     }
 
     fn input(&mut self, cursor: Point) -> Command {
+        // Because typing out the full form of everything gets tedious.
+        macro_rules! keydown {
+            ( $k:ident ) => ( Event::KeyDown{keycode:Some(Keycode::$k), ..} )
+        }
+        macro_rules! keyup {
+            ( $k:ident ) => ( Event::KeyUp{keycode:Some(Keycode::$k), ..} )
+        }
+        macro_rules! flag_set {
+            ( $var:ident ) => ( { self.$var = true; Command::Render } )
+        }
+        macro_rules! flag_unset {
+            ( $var:ident ) => ( { self.$var = false; Command::Render } )
+        }
+
+        let step = if self.is_zooming { 10 } else { 1 };
+
         match self.events.wait_event() {
-            // Exit
-            Event::Quit { .. } |
-            Event::AppTerminating { .. } |
-            Event::KeyDown { keycode: Some(Keycode::Escape), .. } => Command::Quit,
-            Event::KeyDown { keycode: Some(Keycode::Space), .. } => Command::Skip,
+            // Flags (setting/unsetting causes a rerender)
+            keydown!(LShift) | keydown!(RShift) => flag_set!(is_zooming),
+            keyup!(LShift) | keyup!(RShift) => flag_unset!(is_zooming),
+            keydown!(LAlt) | keydown!(RAlt) => flag_set!(is_scrolling),
+            keyup!(LAlt) | keyup!(RAlt) => flag_unset!(is_scrolling),
 
             // Cursor and Viewport
             Event::MouseButtonDown { x, y, mouse_btn: MouseButton::Left, .. } => {
@@ -131,94 +147,76 @@ impl UI for SdlUI {
                     Command::Render
                 }
             }
-            Event::KeyDown { keycode: Some(Keycode::LShift), .. } |
-            Event::KeyDown { keycode: Some(Keycode::RShift), .. } => {
-                self.is_zooming = true;
-                self.input(cursor)
-            }
-            Event::KeyUp { keycode: Some(Keycode::LShift), .. } |
-            Event::KeyUp { keycode: Some(Keycode::RShift), .. } => {
-                self.is_zooming = false;
-                self.input(cursor)
-            }
-            Event::KeyDown { keycode: Some(Keycode::LAlt), .. } |
-            Event::KeyDown { keycode: Some(Keycode::RAlt), .. } => {
-                self.is_scrolling = true;
-                self.input(cursor)
-            }
-            Event::KeyUp { keycode: Some(Keycode::LAlt), .. } |
-            Event::KeyUp { keycode: Some(Keycode::RAlt), .. } => {
-                self.is_scrolling = false;
-                self.input(cursor)
-            }
             Event::MouseMotion { x, y, .. } if self.is_mousing => {
                 Command::SetCursorTo(cursor_from_mouse(self.viewport, x, y))
             }
-            Event::KeyDown { keycode: Some(Keycode::Up), .. } if self.is_scrolling => {
-                self.viewport.y =
-                    self.viewport.y.saturating_sub(if self.is_zooming { 10 } else { 1 });
-                self.scroll_viewport(cursor, 0);
-                Command::Render
+            keydown!(Up) => {
+                if self.is_scrolling {
+                    self.viewport.y = self.viewport.y.saturating_sub(step);
+                    self.scroll_viewport(cursor, 0);
+                    Command::Render
+                } else {
+                    Command::SetCursorTo(Point {
+                        x: cursor.x,
+                        y: cursor.y.saturating_sub(step),
+                    })
+                }
             }
-            Event::KeyDown { keycode: Some(Keycode::Up), .. } => {
-                Command::SetCursorTo(Point {
-                    x: cursor.x,
-                    y: cursor.y.saturating_sub(if self.is_zooming { 10 } else { 1 }),
-                })
+            keydown!(Down) => {
+                if self.is_scrolling {
+                    self.viewport.y = cmp::min(HEIGHT, self.viewport.y.saturating_add(step));
+                    self.scroll_viewport(cursor, 0);
+                    Command::Render
+                } else {
+                    Command::SetCursorTo(Point {
+                        x: cursor.x,
+                        y: cmp::min(HEIGHT, cursor.y.saturating_add(step)),
+                    })
+                }
             }
-            Event::KeyDown { keycode: Some(Keycode::Down), .. } if self.is_scrolling => {
-                self.viewport.y =
-                    min(HEIGHT,
-                        self.viewport.y.saturating_add(if self.is_zooming { 10 } else { 1 }));
-                self.scroll_viewport(cursor, 0);
-                Command::Render
+            keydown!(Left) => {
+                if self.is_scrolling {
+                    self.viewport.x = self.viewport.x.saturating_sub(step);
+                    self.scroll_viewport(cursor, 0);
+                    Command::Render
+                } else {
+                    Command::SetCursorTo(Point {
+                        x: cursor.x.saturating_sub(step),
+                        y: cursor.y,
+                    })
+                }
             }
-            Event::KeyDown { keycode: Some(Keycode::Down), .. } => {
-                Command::SetCursorTo(Point {
-                    x: cursor.x,
-                    y: min(HEIGHT,
-                           cursor.y.saturating_add(if self.is_zooming { 10 } else { 1 })),
-                })
-            }
-            Event::KeyDown { keycode: Some(Keycode::Left), .. } if self.is_scrolling => {
-                self.viewport.x =
-                    self.viewport.x.saturating_sub(if self.is_zooming { 10 } else { 1 });
-                self.scroll_viewport(cursor, 0);
-                Command::Render
-            }
-            Event::KeyDown { keycode: Some(Keycode::Left), .. } => {
-                Command::SetCursorTo(Point {
-                    x: cursor.x.saturating_sub(if self.is_zooming { 10 } else { 1 }),
-                    y: cursor.y,
-                })
-            }
-            Event::KeyDown { keycode: Some(Keycode::Right), .. } if self.is_scrolling => {
-                self.viewport.x =
-                    min(WIDTH,
-                        self.viewport.x.saturating_add(if self.is_zooming { 10 } else { 1 }));
-                self.scroll_viewport(cursor, 0);
-                Command::Render
-            }
-            Event::KeyDown { keycode: Some(Keycode::Right), .. } => {
-                Command::SetCursorTo(Point {
-                    x: min(WIDTH,
-                           cursor.x.saturating_add(if self.is_zooming { 10 } else { 1 })),
-                    y: cursor.y,
-                })
+            keydown!(Right) => {
+                if self.is_scrolling {
+                    self.viewport.x = cmp::min(WIDTH, self.viewport.x.saturating_add(step));
+                    self.scroll_viewport(cursor, 0);
+                    Command::Render
+                } else {
+                    Command::SetCursorTo(Point {
+                        x: cmp::min(WIDTH, cursor.x.saturating_add(step)),
+                        y: cursor.y,
+                    })
+                }
             }
 
             // Debug
-            Event::KeyDown { keycode: Some(Keycode::F5), .. } => Command::Render,
-            Event::KeyDown { keycode: Some(Keycode::Tab), .. } => {
+            keydown!(F5) => Command::Render,
+            keydown!(Tab) => {
                 self.active_heatmap = next_heatmap(self.active_heatmap);
                 println!("DEBUG: rendering heatmap {:?}", self.active_heatmap);
                 Command::Render
             }
-            Event::KeyDown { keycode: Some(Keycode::Semicolon), .. } => {
+            keydown!(Semicolon) => {
                 self.show_heatmap = !self.show_heatmap;
                 println!("DEBUG: toggling heatmap to {:?}", self.show_heatmap);
                 Command::Render
             }
+
+            // Exit
+            Event::Quit { .. } |
+            Event::AppTerminating { .. } |
+            keydown!(Escape) => Command::Quit,
+            keydown!(Space) => Command::Skip,
 
             // Ignore unexpected input.
             _ => self.input(cursor),
@@ -229,24 +227,23 @@ impl UI for SdlUI {
 impl SdlUI {
     /// Construct a new SDL2 interface. Should only be called once.
     pub fn new() -> Result<SdlUI, String> {
+        // SDL stuff doesn't implement the trait `try!` needs.
+        macro_rules! ftry {
+            ( $e:expr ) => ( match $e {
+                Ok(x) => x,
+                Err(e) => return Err(format!("{}", e)),
+            } )
+        }
+
         let context = try!(sdl2::init());
         let events = try!(context.event_pump());
         let video = try!(context.video());
-        let window = match video.window("Rogue Mayor", SCREEN_WIDTH, SCREEN_HEIGHT)
+        let window = ftry!(video.window("Rogue Mayor", SCREEN_WIDTH, SCREEN_HEIGHT)
             .position_centered()
             .opengl()
-            .build() {
-            Ok(win) => win,
-            Err(e) => return Err(format!("{}", e)),
-        };
-        let renderer = match window.renderer().build() {
-            Ok(ren) => ren,
-            Err(e) => return Err(format!("{}", e)),
-        };
-        let ttf = match sdl2::ttf::init() {
-            Ok(ttf) => ttf,
-            Err(e) => return Err(format!("{}", e)),
-        };
+            .build());
+        let renderer = ftry!(window.renderer().build());
+        let ttf = ftry!(sdl2::ttf::init());
 
         Ok(SdlUI {
             viewport: Point { x: 0, y: 0 },
@@ -329,18 +326,9 @@ impl SdlUI {
         }
 
         // Render every cell.
-        for dy in 0..VIEWPORT_CELL_HEIGHT {
-            if self.viewport.y + dy >= HEIGHT {
-                break;
-            }
-            for dx in 0..VIEWPORT_CELL_WIDTH {
-                if self.viewport.x + dx >= WIDTH {
-                    break;
-                }
-                let here = Point {
-                    x: self.viewport.x + dx,
-                    y: self.viewport.y + dy,
-                };
+        for y in self.viewport.y..cmp::min(HEIGHT, self.viewport.y + VIEWPORT_CELL_HEIGHT) {
+            for x in self.viewport.x..cmp::min(WIDTH, self.viewport.x + VIEWPORT_CELL_WIDTH) {
+                let here = Point { x: x, y: y };
                 let color = if self.show_heatmap {
                     let val = map.at(here);
                     let p = if val == f64::MAX {
@@ -370,14 +358,14 @@ impl SdlUI {
         if cursor.x < self.viewport.x {
             self.viewport.x = cursor.x.saturating_sub(overshoot);
         } else if cursor.x > self.viewport.x + VIEWPORT_CELL_WIDTH {
-            self.viewport.x = min(WIDTH - VIEWPORT_CELL_WIDTH,
-                                  cursor.x + overshoot - VIEWPORT_CELL_WIDTH)
+            self.viewport.x = cmp::min(WIDTH - VIEWPORT_CELL_WIDTH,
+                                       cursor.x + overshoot - VIEWPORT_CELL_WIDTH)
         }
         if cursor.y < self.viewport.y {
             self.viewport.y = cursor.y.saturating_sub(overshoot);
         } else if cursor.y > self.viewport.y + VIEWPORT_CELL_HEIGHT {
-            self.viewport.y = min(HEIGHT - VIEWPORT_CELL_HEIGHT,
-                                  cursor.y + overshoot - VIEWPORT_CELL_HEIGHT)
+            self.viewport.y = cmp::min(HEIGHT - VIEWPORT_CELL_HEIGHT,
+                                       cursor.y + overshoot - VIEWPORT_CELL_HEIGHT)
         }
     }
 }
