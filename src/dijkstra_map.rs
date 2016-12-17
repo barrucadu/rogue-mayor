@@ -130,7 +130,7 @@ impl Map {
 
     /// Add a new source to the map.
     pub fn add_source(&mut self, source: Point, world: &World) {
-        self.sources.push(source);
+        self.add_source_no_rebuild(source);
 
         // Set the point to zero weighting and flood fill from that point.
         self.approach.set(source, 0.0);
@@ -138,6 +138,11 @@ impl Map {
 
         // Then completely recompute the flee maps.
         self.recompute_flee(world);
+    }
+
+    /// Add a new source to the map without rebuilding.
+    pub fn add_source_no_rebuild(&mut self, source: Point) {
+        self.sources.push(source);
     }
 
     /// Remove a source from the map.
