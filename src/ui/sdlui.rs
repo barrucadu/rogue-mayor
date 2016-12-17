@@ -40,6 +40,9 @@ const LOG_GAP: usize = 2;
 // Number of log entries to display above the map.
 const LOG_ENTRIES_VISIBLE: usize = 7;
 
+// Number of cells to "overshoot" the cursor by when scrolling.
+const SCROLL_OVERSHOOT: usize = 25;
+
 // Some helpful derived stuff
 const SCREEN_WIDTH: u32 = (CELL_PIXEL_WIDTH * VIEWPORT_CELL_WIDTH) as u32;
 const SCREEN_HEIGHT: u32 =
@@ -92,6 +95,22 @@ impl UI for SdlUI {
     fn render(&mut self, mobs: &BTreeMap<Point, Mobile>, maps: &Maps, world: &World) {
         self.renderer.set_draw_color(Color::RGB(0, 0, 0));
         self.renderer.clear();
+
+        // Scroll the viewport if the cursor is outside of it.
+        if world.cursor.x < self.viewport.x {
+            self.viewport.x = world.cursor.x.saturating_sub(SCROLL_OVERSHOOT);
+        }
+        if world.cursor.x > self.viewport.x + VIEWPORT_CELL_WIDTH {
+            self.viewport.x = min(WIDTH - VIEWPORT_CELL_WIDTH,
+                                  world.cursor.x + SCROLL_OVERSHOOT - VIEWPORT_CELL_WIDTH)
+        }
+        if world.cursor.y < self.viewport.y {
+            self.viewport.y = world.cursor.y.saturating_sub(SCROLL_OVERSHOOT);
+        }
+        if world.cursor.y > self.viewport.y + VIEWPORT_CELL_HEIGHT {
+            self.viewport.y = min(HEIGHT - VIEWPORT_CELL_HEIGHT,
+                                  world.cursor.y + SCROLL_OVERSHOOT - VIEWPORT_CELL_HEIGHT)
+        }
 
         // Render the message log.
         self.render_log(world);
