@@ -390,13 +390,13 @@ impl SdlUI {
     fn scroll_viewport(&mut self, cursor: Point, overshoot: usize) {
         if cursor.x < self.viewport.top_left.x {
             self.viewport.top_left.x = cursor.x.saturating_sub(overshoot);
-        } else if cursor.x > self.viewport.top_left.x + self.viewport.width {
+        } else if cursor.x >= self.viewport.top_left.x + self.viewport.width {
             self.viewport.top_left.x = cmp::min(WIDTH - self.viewport.width,
                                                 cursor.x + overshoot - self.viewport.width)
         }
         if cursor.y < self.viewport.top_left.y {
             self.viewport.top_left.y = cursor.y.saturating_sub(overshoot);
-        } else if cursor.y > self.viewport.top_left.y + self.viewport.height {
+        } else if cursor.y >= self.viewport.top_left.y + self.viewport.height {
             self.viewport.top_left.y = cmp::min(HEIGHT - self.viewport.height,
                                                 cursor.y + overshoot - self.viewport.height)
         }
@@ -551,8 +551,8 @@ struct Viewport {
 impl Viewport {
     /// Turn a point in the world into a `ScrenPos`, if it's on screen.
     fn to_screenpos(&self, p: Point) -> Option<ScreenPos> {
-        if p.x < self.top_left.x || p.y < self.top_left.y || p.x > self.top_left.x + self.width ||
-           p.y > self.top_left.y + self.height {
+        if p.x < self.top_left.x || p.y < self.top_left.y ||
+           p.x >= self.top_left.x + self.width || p.y >= self.top_left.y + self.height {
             None
         } else {
             Some(ScreenPos {
