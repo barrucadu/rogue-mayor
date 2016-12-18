@@ -334,6 +334,12 @@ impl SdlUI {
     fn render_world(&mut self, mobs: &BTreeMap<Point, Mobile>, maps: &Maps, world: &World) {
         let font = self.ttf.load_font(Path::new(FONT_PATH), FONT_SIZE).unwrap();
 
+        // The world coordinates that fit on screen.
+        let min_y = self.screen.viewport_top_left.y;
+        let min_x = self.screen.viewport_top_left.x;
+        let max_y = cmp::min(HEIGHT, min_y + self.screen.viewport_height as usize);
+        let max_x = cmp::min(WIDTH, min_x + self.screen.viewport_width as usize);
+
         // Render the active heatmap.
         let (style, tag) = self.active_heatmap;
         let heatmap = maps.get(tag);
@@ -343,12 +349,12 @@ impl SdlUI {
             Style::FleeBravely => &heatmap.flee_bravely,
         };
 
-        // Find the min and max values in the heatmap.
+        // Find the min and max values in the visible heatmap.
         let mut min = f64::MAX;
         let mut max = f64::MIN;
         if self.show_heatmap {
-            for y in 0..HEIGHT {
-                for x in 0..WIDTH {
+            for y in min_y..max_y {
+                for x in min_x..max_x {
                     let val = map.at(Point { x: x, y: y });
                     if val > max && val != f64::MAX {
                         max = val;
@@ -361,10 +367,8 @@ impl SdlUI {
         }
 
         // Render every cell.
-        let min_y = self.screen.viewport_top_left.y;
-        let min_x = self.screen.viewport_top_left.x;
-        for y in min_y..cmp::min(HEIGHT, min_y + self.screen.viewport_height as usize) {
-            for x in min_x..cmp::min(WIDTH, min_x + self.screen.viewport_width as usize) {
+        for y in min_y..max_y {
+            for x in min_x..max_x {
                 let here = Point { x: x, y: y };
                 if let Some(screenpos) = self.screen.to_screenpos(here) {
                     let color = if self.show_heatmap {
