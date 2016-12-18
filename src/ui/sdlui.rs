@@ -7,13 +7,12 @@ use mobiles::*;
 use sdl2;
 use sdl2::{EventPump, Sdl, VideoSubsystem};
 use sdl2::event::{Event, WindowEvent};
+use sdl2::image::{INIT_PNG, LoadTexture, Sdl2ImageContext};
 use sdl2::keyboard::Keycode;
 use sdl2::mouse::MouseButton;
-use sdl2::pixels::Color;
+use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::rect::Rect;
-use sdl2::render::{Renderer, TextureQuery};
-use sdl2::surface::Surface;
-use sdl2::ttf::{Font, Sdl2TtfContext};
+use sdl2::render::{BlendMode, Renderer, Texture, TextureQuery};
 use statics::*;
 use std::cmp;
 use std::collections::BTreeMap;
@@ -24,8 +23,8 @@ use types::*;
 use ui::UI;
 
 // The font
-const FONT_PATH: &'static str = "FSEX300.ttf";
-const FONT_SIZE: u16 = 12;
+const FONT_PATH: &'static str = "font.png";
+const FONT_CHAR_WIDTH: u8 = 16;
 
 // Size of the visible viewport, in cells.
 const DEFAULT_VIEWPORT_CELL_HEIGHT: u32 = 50;
@@ -33,8 +32,8 @@ const DEFAULT_VIEWPORT_CELL_WIDTH: u32 = 75;
 
 // Everything is done in terms of rows and columns, which are made of
 // fixed-size cells.
-const DEFAULT_CELL_PIXEL_HEIGHT: u32 = 16;
-const DEFAULT_CELL_PIXEL_WIDTH: u32 = 16;
+const DEFAULT_CELL_PIXEL_HEIGHT: u32 = 12;
+const DEFAULT_CELL_PIXEL_WIDTH: u32 = 12;
 
 // Width of the sidebar, in cells.
 const SIDEBAR_WIDTH: u32 = 25;
@@ -59,8 +58,8 @@ pub struct SdlUI {
     events: EventPump,
     /// The video subsystem.
     video: VideoSubsystem,
-    /// The TTF context.
-    ttf: Sdl2TtfContext,
+    /// The image context.
+    image: Sdl2ImageContext,
     /// Debugging display: whether to show heatmaps.
     show_heatmap: bool,
     /// Debugging display: the heatmap to render.
@@ -268,6 +267,7 @@ impl SdlUI {
 
         let mut screen = Screen {
             renderer: None,
+            font: None,
             cell_pixel_width: DEFAULT_CELL_PIXEL_WIDTH,
             cell_pixel_height: DEFAULT_CELL_PIXEL_HEIGHT,
             viewport_width: DEFAULT_VIEWPORT_CELL_WIDTH,
@@ -283,16 +283,20 @@ impl SdlUI {
             .opengl()
             .resizable()
             .build());
-        let ttf = ftry!(sdl2::ttf::init());
+        let image = ftry!(sdl2::image::init(INIT_PNG));
 
-        screen.renderer = Some(ftry!(window.renderer().build()));
+        // Finish creating the screen:
+        let renderer = ftry!(window.renderer().target_texture().build());
+        let font = try!(renderer.load_texture(Path::new(FONT_PATH)));
+        screen.renderer = Some(renderer);
+        screen.font = Some(font);
 
         Ok(SdlUI {
             screen: screen,
             context: context,
             events: events,
             video: video,
-            ttf: ttf,
+            image: image,
             show_heatmap: false,
             active_heatmap: (Style::Approach, MapTag::Adventure),
             is_mousing: false,
@@ -304,21 +308,18 @@ impl SdlUI {
     /// Render the cursor.
     fn render_cursor(&mut self, cursor: Point) {
         if let Some(cursor_pos) = self.screen.to_screenpos(cursor) {
-            let font = self.ttf.load_font(Path::new(FONT_PATH), FONT_SIZE).unwrap();
             let color = if self.is_mousing {
                 Color::RGB(150, 150, 255)
             } else {
                 Color::RGB(255, 255, 255)
             };
-            let surface = font.render("@").blended(color).unwrap();
-            self.screen.render_in_cell(cursor_pos, &surface);
+            let texture = self.screen.render_text('@'.to_string(), color);
+            self.screen.render_in_cell(&texture, cursor_pos);
         }
     }
 
     /// Render the message log.
     fn render_log(&mut self, world: &World) {
-        let font = self.ttf.load_font(Path::new(FONT_PATH), FONT_SIZE).unwrap();
-
         let log_width = self.screen.cell_width() - BORDER_THICKNESS - SIDEBAR_WIDTH;
         let log_height = LOG_ENTRIES_VISIBLE + 2 * BORDER_THICKNESS;
 
@@ -329,8 +330,8 @@ impl SdlUI {
                                        ((LOG_ENTRIES_VISIBLE - done - 1 + BORDER_THICKNESS)),
                                        log_width - 2,
                                        1);
-            let surface = font.render(msg.msg.as_str()).blended(color).unwrap();
-            self.screen.render_in_rect(&surface, bbox, false, true);
+            let texture = self.screen.render_text(msg.msg.clone(), color);
+            self.screen.render_in_rect(&texture, bbox, false, true);
             done += 1;
         }
 
@@ -347,8 +348,6 @@ impl SdlUI {
 
     /// Render the world, with a heatmap overlay if enabled.
     fn render_world(&mut self, mobs: &BTreeMap<Point, Mobile>, maps: &Maps, world: &World) {
-        let font = self.ttf.load_font(Path::new(FONT_PATH), FONT_SIZE).unwrap();
-
         // The world coordinates that fit on screen.
         let min_y = self.screen.viewport_top_left.y;
         let min_x = self.screen.viewport_top_left.x;
@@ -399,11 +398,10 @@ impl SdlUI {
                     } else {
                         Color::RGB(0, 0, 0)
                     };
-                    self.screen.render_cell(&font,
-                                            screenpos,
-                                            world.statics.at(here),
-                                            mobs.get(&here),
-                                            Some(color));
+                    self.render_cell(screenpos,
+                                     world.statics.at(here),
+                                     mobs.get(&here),
+                                     Some(color));
                 }
             }
         }
@@ -411,11 +409,44 @@ impl SdlUI {
 
     /// Render a template at the cursor.
     fn render_template(&mut self, cursor: Point, tpl: &Template) {
-        let font = self.ttf.load_font(Path::new(FONT_PATH), FONT_SIZE).unwrap();
         for (p, &(s, _)) in &tpl.components {
             if let Some(screenpos) = self.screen.to_screenpos(p.offset(cursor)) {
-                self.screen.render_cell(&font, screenpos, Some(s), None, None);
+                self.render_cell(screenpos, Some(s), None, None);
             }
+        }
+    }
+
+    /// Render a cell.
+    fn render_cell(&mut self,
+                   screenpos: ScreenPos,
+                   s: Option<Static>,
+                   m: Option<&Mobile>,
+                   color: Option<Color>) {
+        let mut background = color;
+        let mut surface = None;
+
+        let to_render = match (m, s) {
+            (Some(mob), _) => Some(mob.visual()),
+            (_, Some(stat)) => Some(stat.visual()),
+            _ => None,
+        };
+
+        if let Some((b, fgcol, bgcol)) = to_render {
+            if bgcol.is_some() {
+                background = bgcol
+            }
+
+            surface = Some(self.screen.render_bytes(&[b], fgcol));
+        }
+
+        // Render the background color, if there is one.
+        if let Some(bg) = background {
+            self.screen.fill_rect(screenpos.rect(), bg);
+        }
+
+        // Render the surface, if there is one.
+        if let Some(ref sface) = surface {
+            self.screen.render_in_cell(sface, screenpos);
         }
     }
 
@@ -446,12 +477,14 @@ impl SdlUI {
 /// The screen. Width and height are measured in cells.
 #[allow(missing_copy_implementations, missing_debug_implementations)]
 struct Screen {
-    // It is a runtime error for this to be `None`, it's set immediately after creating the
+    // It is an error for either of these to be `None`, they are set immediately after creating the
     // renderer. The issue is that the `Screen` needs to be creatable, so `Screen::pixel_width()`
     // and `Screen::pixel_height()` can be called to determine the dimensions of the initial window,
-    // but the renderer cannot be created before the window. So the `Screen` must first be created
-    // with a dummy renderer.
+    // but the renderer (and therefore font) cannot be created before the window. So the `Screen`
+    // must first be created with a dummy renderer (and font).
     renderer: Option<Renderer<'static>>,
+    font: Option<Texture>,
+
     cell_pixel_width: u32,
     cell_pixel_height: u32,
     viewport_width: u32,
@@ -552,41 +585,6 @@ impl Screen {
         self.fill_rect(right, border_color);
     }
 
-    /// Render a cell.
-    fn render_cell(&mut self,
-                   font: &Font,
-                   screenpos: ScreenPos,
-                   s: Option<Static>,
-                   m: Option<&Mobile>,
-                   color: Option<Color>) {
-        let mut background = color;
-        let mut surface = None;
-
-        let to_render = match (m, s) {
-            (Some(mob), _) => Some(mob.visual()),
-            (_, Some(stat)) => Some(stat.visual()),
-            _ => None,
-        };
-
-        if let Some((ch, fgcol, bgcol)) = to_render {
-            if bgcol.is_some() {
-                background = bgcol
-            }
-
-            surface = Some(font.render(ch.to_string().as_str()).blended(fgcol).unwrap());
-        }
-
-        // Render the background color, if there is one.
-        if let Some(bg) = background {
-            self.fill_rect(screenpos.rect(), bg);
-        }
-
-        // Render the surface, if there is one.
-        if let Some(ref sface) = surface {
-            self.render_in_cell(screenpos, sface);
-        }
-    }
-
     /// Fill a rect with a colour.
     fn fill_rect(&mut self, srect: ScreenRect, color: Color) {
         if let Some(ref mut renderer) = self.renderer {
@@ -595,24 +593,69 @@ impl Screen {
         }
     }
 
+    fn render_text(&mut self, text: String, color: Color) -> Texture {
+        self.render_bytes(text.as_bytes(), color)
+    }
+
+    fn render_bytes(&mut self, bytes: &[u8], color: Color) -> Texture {
+        if let Some(ref mut renderer) = self.renderer {
+            let mut texture = renderer.create_texture_target(PixelFormatEnum::ARGB8888,
+                                       self.cell_pixel_width * bytes.len() as u32,
+                                       self.cell_pixel_height)
+                .unwrap();
+
+            // Make the texture transparent.
+            texture.set_blend_mode(BlendMode::Blend);
+
+            // Set the color mod
+            let (r, g, b) = color.rgb();
+            texture.set_color_mod(r, g, b);
+
+            let _ = renderer.render_target()
+                .unwrap()
+                .set(texture);
+
+            // Clear the texture
+            renderer.set_draw_color(Color::RGBA(0, 0, 0, 0));
+            renderer.clear();
+
+            if let Some(ref font) = self.font {
+                let mut dst = Rect::new(0, 0, self.cell_pixel_width, self.cell_pixel_height);
+                for b in bytes {
+                    let x = (b % FONT_CHAR_WIDTH) as u32;
+                    let y = (b / FONT_CHAR_WIDTH) as u32;
+                    let src = Rect::new((x * self.cell_pixel_width) as i32,
+                                        (y * self.cell_pixel_height) as i32,
+                                        self.cell_pixel_width,
+                                        self.cell_pixel_height);
+                    let _ = renderer.copy(&font, Some(src), Some(dst));
+                    let old_x = dst.x();
+                    dst.set_x(old_x + self.cell_pixel_width as i32);
+                }
+            }
+
+            renderer.render_target().unwrap().reset().unwrap().unwrap()
+        } else {
+            panic!("Renderer not instantiated!")
+        }
+    }
+
     // ******************** PRIMITIVE RENDERING ********************
 
-    /// Render a surface in a cell.
-    fn render_in_cell(&mut self, screenpos: ScreenPos, surface: &Surface) {
-        self.render_in_rect(surface, screenpos.rect(), true, true)
+    /// Render a texture in a cell.
+    fn render_in_cell(&mut self, texture: &Texture, screenpos: ScreenPos) {
+        self.render_in_rect(texture, screenpos.rect(), true, true)
     }
 
     /// Copy a texture into a bounding box, scaling it if necessary.
     fn render_in_rect(&mut self,
-                      surface: &Surface,
+                      texture: &Texture,
                       srect: ScreenRect,
                       center_horiz: bool,
                       center_vert: bool) {
         let bbox = srect.rect(self.cell_pixel_width, self.cell_pixel_height);
 
         if let Some(ref mut renderer) = self.renderer {
-            let texture = renderer.create_texture_from_surface(surface).unwrap();
-
             let TextureQuery { mut width, mut height, .. } = texture.query();
 
             // Scale down.
@@ -700,25 +743,25 @@ impl ScreenRect {
 
 trait Visual {
     /// What the thing should look like.
-    fn visual(&self) -> (char, Color, Option<Color>);
+    fn visual(&self) -> (u8, Color, Option<Color>);
 }
 
 impl Visual for Mobile {
-    fn visual(&self) -> (char, Color, Option<Color>) {
+    fn visual(&self) -> (u8, Color, Option<Color>) {
         // There aren't any yet!
-        ('m', Color::RGB(0, 255, 0), None)
+        ('m' as u8, Color::RGB(0, 255, 0), None)
     }
 }
 
 impl Visual for Static {
-    fn visual(&self) -> (char, Color, Option<Color>) {
+    fn visual(&self) -> (u8, Color, Option<Color>) {
         match *self {
-            Static::GStoreCounter => ('', Color::RGB(133, 94, 66), None),
-            Static::InnCounter => ('', Color::RGB(133, 94, 66), None),
-            Static::Dungeon => ('ห', Color::RGB(129, 26, 26), Some(Color::RGB(66, 66, 111))),
-            Static::Bed => ('Θ', Color::RGB(166, 128, 100), None),
-            Static::Wall => ('#', Color::RGB(0, 0, 0), Some(Color::RGB(133, 94, 66))),
-            Static::Door => ('║', Color::RGB(0, 0, 0), Some(Color::RGB(133, 94, 66))),
+            Static::GStoreCounter => (210, Color::RGB(133, 94, 66), None),
+            Static::InnCounter => (210, Color::RGB(133, 94, 66), None),
+            Static::Dungeon => (234, Color::RGB(129, 26, 26), Some(Color::RGB(66, 66, 111))),
+            Static::Bed => (233, Color::RGB(166, 128, 100), None),
+            Static::Wall => ('#' as u8, Color::RGB(0, 0, 0), Some(Color::RGB(133, 94, 66))),
+            Static::Door => (186, Color::RGB(0, 0, 0), Some(Color::RGB(133, 94, 66))),
         }
     }
 }
