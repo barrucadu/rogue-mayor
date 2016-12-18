@@ -32,7 +32,7 @@ const FONT_PIXEL_OFF_VERT: u32 = 0;
 
 // Size of the visible viewport, in cells.
 const DEFAULT_VIEWPORT_CELL_HEIGHT: u32 = 50;
-const DEFAULT_VIEWPORT_CELL_WIDTH: u32 = 75;
+const DEFAULT_VIEWPORT_CELL_WIDTH: u32 = 100;
 
 // Everything is done in terms of rows and columns, which are made of
 // fixed-size cells.
