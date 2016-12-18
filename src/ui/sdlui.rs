@@ -7,6 +7,7 @@ use mobiles::*;
 use sdl2;
 use sdl2::{EventPump, Sdl, VideoSubsystem};
 use sdl2::event::{Event, WindowEvent};
+use sdl2::gfx::framerate::FPSManager;
 use sdl2::image::{INIT_PNG, LoadTexture, Sdl2ImageContext};
 use sdl2::keyboard::Keycode;
 use sdl2::mouse::MouseButton;
@@ -39,6 +40,9 @@ const DEFAULT_VIEWPORT_CELL_WIDTH: u32 = 100;
 const DEFAULT_CELL_PIXEL_HEIGHT: u32 = FONT_PIXEL_HEIGHT - 2 * FONT_PIXEL_OFF_VERT;
 const DEFAULT_CELL_PIXEL_WIDTH: u32 = FONT_PIXEL_WIDTH - 2 * FONT_PIXEL_OFF_HORIZ;
 
+// The framerate
+const DEFAULT_FRAMERATE: u32 = 15;
+
 // Width of the sidebar, in cells.
 const SIDEBAR_WIDTH: u32 = 25;
 
@@ -62,6 +66,8 @@ pub struct SdlUI {
     events: EventPump,
     /// The video subsystem.
     video: VideoSubsystem,
+    /// The FPS manager.
+    fps: FPSManager,
     /// The image context.
     image: Sdl2ImageContext,
     /// Debugging display: whether to show heatmaps.
@@ -76,6 +82,8 @@ pub struct SdlUI {
     is_scrolling: bool,
     /// What to display in the sidebar.
     menu: Menu,
+    /// Increments (wrapping) on every frame.
+    indicator: u8,
 }
 
 /// What menu to display in the sidebar.
@@ -132,11 +140,88 @@ impl UI for SdlUI {
         let full_height = self.screen.cell_height();
         self.screen.render_border(ScreenRect::new(0, 0, full_width, full_height));
 
+        // The indicator.
+        let texture = self.screen.render_bytes(&[self.indicator], Color::RGB(150, 200, 250));
+        self.screen.render_in_cell(&texture, ScreenPos { x: 0, y: 0 });
+        self.indicator = self.indicator.wrapping_add(1);
+
         // Finally, display everything.
         self.screen.present();
     }
 
     fn input(&mut self, cursor: Point) -> Command {
+        // Wait until it's time for the next frame.
+        let _ = self.fps.delay();
+
+        // Check for an event.
+        if let Some(event) = self.events.poll_event() {
+            self.input_handler(event, cursor)
+        } else {
+            Command::Skip
+        }
+    }
+}
+
+impl SdlUI {
+    /// Construct a new SDL2 interface. Should only be called once.
+    pub fn new() -> Result<SdlUI, String> {
+        // SDL stuff doesn't implement the trait `try!` needs.
+        macro_rules! ftry {
+            ( $e:expr ) => ( match $e {
+                Ok(x) => x,
+                Err(e) => return Err(format!("{}", e)),
+            } )
+        }
+
+        let mut screen = Screen {
+            renderer: None,
+            font: None,
+            cell_pixel_width: DEFAULT_CELL_PIXEL_WIDTH,
+            cell_pixel_height: DEFAULT_CELL_PIXEL_HEIGHT,
+            viewport_width: DEFAULT_VIEWPORT_CELL_WIDTH,
+            viewport_height: DEFAULT_VIEWPORT_CELL_HEIGHT,
+            viewport_top_left: Point { x: 0, y: 0 },
+        };
+
+        let context = try!(sdl2::init());
+        let events = try!(context.event_pump());
+        let video = try!(context.video());
+        let window = ftry!(video.window("Rogue Mayor", screen.pixel_width(), screen.pixel_height())
+            .position_centered()
+            .opengl()
+            .resizable()
+            .build());
+        let image = ftry!(sdl2::image::init(INIT_PNG));
+
+        // Set the framerate.
+        let mut fps = FPSManager::new();
+        try!(fps.set_framerate(DEFAULT_FRAMERATE));
+
+        // Finish creating the screen:
+        let renderer = ftry!(window.renderer().target_texture().build());
+        let font = try!(renderer.load_texture(Path::new(FONT_PATH)));
+        screen.renderer = Some(renderer);
+        screen.font = Some(font);
+
+        Ok(SdlUI {
+            screen: screen,
+            context: context,
+            events: events,
+            video: video,
+            fps: fps,
+            image: image,
+            show_heatmap: false,
+            active_heatmap: (Style::Approach, MapTag::Adventure),
+            is_mousing: false,
+            is_zooming: false,
+            is_scrolling: false,
+            menu: Menu::Main,
+            indicator: 0,
+        })
+    }
+
+    /// Handle input
+    fn input_handler(&mut self, event: Event, cursor: Point) -> Command {
         // Because typing out the full form of everything gets tedious.
         macro_rules! keydown {
             ( $k:ident ) => ( Event::KeyDown{keycode:Some(Keycode::$k), ..} )
@@ -153,7 +238,7 @@ impl UI for SdlUI {
 
         let step = if self.is_zooming { 10 } else { 1 };
 
-        match self.events.wait_event() {
+        match event {
             // Flags (setting/unsetting causes a rerender)
             keydown!(LShift) | keydown!(RShift) => flag_set!(is_zooming),
             keyup!(LShift) | keyup!(RShift) => flag_unset!(is_zooming),
@@ -293,59 +378,6 @@ impl UI for SdlUI {
             // Ignore unexpected input.
             _ => self.input(cursor),
         }
-    }
-}
-
-impl SdlUI {
-    /// Construct a new SDL2 interface. Should only be called once.
-    pub fn new() -> Result<SdlUI, String> {
-        // SDL stuff doesn't implement the trait `try!` needs.
-        macro_rules! ftry {
-            ( $e:expr ) => ( match $e {
-                Ok(x) => x,
-                Err(e) => return Err(format!("{}", e)),
-            } )
-        }
-
-        let mut screen = Screen {
-            renderer: None,
-            font: None,
-            cell_pixel_width: DEFAULT_CELL_PIXEL_WIDTH,
-            cell_pixel_height: DEFAULT_CELL_PIXEL_HEIGHT,
-            viewport_width: DEFAULT_VIEWPORT_CELL_WIDTH,
-            viewport_height: DEFAULT_VIEWPORT_CELL_HEIGHT,
-            viewport_top_left: Point { x: 0, y: 0 },
-        };
-
-        let context = try!(sdl2::init());
-        let events = try!(context.event_pump());
-        let video = try!(context.video());
-        let window = ftry!(video.window("Rogue Mayor", screen.pixel_width(), screen.pixel_height())
-            .position_centered()
-            .opengl()
-            .resizable()
-            .build());
-        let image = ftry!(sdl2::image::init(INIT_PNG));
-
-        // Finish creating the screen:
-        let renderer = ftry!(window.renderer().target_texture().build());
-        let font = try!(renderer.load_texture(Path::new(FONT_PATH)));
-        screen.renderer = Some(renderer);
-        screen.font = Some(font);
-
-        Ok(SdlUI {
-            screen: screen,
-            context: context,
-            events: events,
-            video: video,
-            image: image,
-            show_heatmap: false,
-            active_heatmap: (Style::Approach, MapTag::Adventure),
-            is_mousing: false,
-            is_zooming: false,
-            is_scrolling: false,
-            menu: Menu::Main,
-        })
     }
 
     /// Render the cursor.
