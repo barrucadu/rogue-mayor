@@ -27,7 +27,6 @@ fn main() {
             let mut mobs: BTreeMap<Point, Mobile> = BTreeMap::new();
             let mut world: World = World::new();
             world.cursor = SdlUI::initial_cursor();
-            world.template = Some(Template::inn());
 
             // Everyone likes welcomes.
             world.log(Message {
@@ -67,11 +66,13 @@ fn main() {
                     match action {
                         Command::BuildTemplate => {
                             world.build(&mut maps);
+                            world.template = None;
                             break 'ui;
                         }
                         Command::Quit => break 'game,
                         Command::Render => {}
                         Command::SetCursorTo(c) => world.cursor = c,
+                        Command::SetTemplateTo(t) => world.template = Some(Template::new(t)),
                         Command::Skip => break 'ui,
                     }
 

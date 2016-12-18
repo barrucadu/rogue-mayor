@@ -70,6 +70,15 @@ pub struct SdlUI {
     is_zooming: bool,
     /// Whether we're scrolling the viewport or not (alt held down).
     is_scrolling: bool,
+    /// What to display in the sidebar.
+    menu: Menu,
+}
+
+/// What menu to display in the sidebar.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum Menu {
+    Main,
+    Template,
 }
 
 /// Debugging display: a heatmap style to render.
@@ -147,6 +156,39 @@ impl UI for SdlUI {
             keydown!(LAlt) | keydown!(RAlt) => flag_set!(is_scrolling),
             keyup!(LAlt) | keyup!(RAlt) => flag_unset!(is_scrolling),
 
+            // Menu
+            keydown!(B) => {
+                if self.menu == Menu::Main {
+                    self.menu = Menu::Template
+                }
+                Command::Render
+            }
+            keydown!(G) => {
+                if self.menu == Menu::Template {
+                    Command::SetTemplateTo(Templates::GeneralStore)
+                } else {
+                    Command::Render
+                }
+            }
+            keydown!(I) => {
+                if self.menu == Menu::Template {
+                    Command::SetTemplateTo(Templates::Inn)
+                } else {
+                    Command::Render
+                }
+            }
+            keydown!(Escape) => {
+                self.menu = Menu::Main;
+                Command::Render
+            }
+            keydown!(Return) => {
+                if self.menu == Menu::Template {
+                    Command::BuildTemplate
+                } else {
+                    Command::Render
+                }
+            }
+
             // Window
             Event::Window { win_event: WindowEvent::Resized(w, h), .. } |
             Event::Window { win_event: WindowEvent::SizeChanged(w, h), .. } => {
@@ -160,9 +202,6 @@ impl UI for SdlUI {
 
                 Command::Render
             }
-
-            // Building
-            keydown!(Return) => Command::BuildTemplate,
 
             // Cursor and Viewport
             Event::MouseButtonDown { x, y, mouse_btn: MouseButton::Left, .. } => {
@@ -244,8 +283,7 @@ impl UI for SdlUI {
 
             // Exit
             Event::Quit { .. } |
-            Event::AppTerminating { .. } |
-            keydown!(Escape) => Command::Quit,
+            Event::AppTerminating { .. } => Command::Quit,
             keydown!(Space) => Command::Skip,
 
             // Ignore unexpected input.
@@ -302,6 +340,7 @@ impl SdlUI {
             is_mousing: false,
             is_zooming: false,
             is_scrolling: false,
+            menu: Menu::Main,
         })
     }
 
@@ -343,6 +382,48 @@ impl SdlUI {
         let sidebar_x = self.screen.cell_width() - 2 * BORDER_THICKNESS - SIDEBAR_WIDTH;
         let sidebar_width = SIDEBAR_WIDTH + 2 * BORDER_THICKNESS;
         let sidebar_height = self.screen.cell_height();
+
+        let controls = match self.menu {
+            Menu::Main => vec![vec![("b", "Building")]],
+            Menu::Template => {
+                vec![vec![("g", "General Store"), ("i", "Inn")],
+                     vec![("RET", "Build at cursor"), ("ESC", "Return to main menu")]]
+            }
+        };
+
+        let mut y = 2;
+        for cs in controls {
+            for (key, text) in cs {
+                let mut pos = ScreenPos {
+                    x: sidebar_x + 2,
+                    y: y,
+                };
+
+                // Key
+                let mut texture = self.screen
+                    .render_text(key.to_string(), Color::RGB(100, 255, 100));
+                self.screen.render_in_rect(&texture,
+                                           ScreenRect::new(pos.x, pos.y, key.len() as u32, 1),
+                                           false,
+                                           true);
+
+                // Colon
+                pos.x += key.len() as u32;
+                texture = self.screen.render_text(':'.to_string(), Color::RGB(255, 255, 255));
+                self.screen.render_in_cell(&texture, pos);
+
+                // Text
+                pos.x += 2;
+                texture = self.screen.render_text(text.to_string(), Color::RGB(255, 255, 255));
+                self.screen.render_in_rect(&texture,
+                                           ScreenRect::new(pos.x, pos.y, sidebar_width, 1),
+                                           false,
+                                           true);
+                y += 1;
+            }
+            y += 1;
+        }
+
         self.screen.render_border(ScreenRect::new(sidebar_x, 0, sidebar_width, sidebar_height));
     }
 

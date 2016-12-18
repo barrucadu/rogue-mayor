@@ -10,6 +10,15 @@ macro_rules! s{
     ($s:ident) => (Some(Static::$s))
 }
 
+/// The available templates
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum Templates {
+    /// An small inn with a bedroom.
+    Inn,
+    /// A small general store.
+    GeneralStore,
+}
+
 /// A template is a list of statics objects to place, with (0,0) being the top-left corner of the
 /// template.
 #[derive(Clone, Debug)]
@@ -19,6 +28,14 @@ pub struct Template {
 }
 
 impl Template {
+    /// Get a template.
+    pub fn new(tpl: Templates) -> Template {
+        match tpl {
+            Templates::Inn => Template::inn(),
+            Templates::GeneralStore => Template::general_store(),
+        }
+    }
+
     /// Rotate 90 degrees clockwise.
     pub fn clockwise(&mut self) {
         let mut components = BTreeMap::new();
@@ -69,7 +86,7 @@ impl Template {
 
     /// A general store.
     #[cfg_attr(rustfmt, rustfmt_skip)]
-    pub fn general_store() -> Template {
+    fn general_store() -> Template {
         /*    #####
          *    #   #
          *    #║#
@@ -86,7 +103,7 @@ impl Template {
 
     /// An inn.
     #[cfg_attr(rustfmt, rustfmt_skip)]
-    pub fn inn() -> Template {
+    fn inn() -> Template {
         /*    ##############
          *    #Θ  Θ  Θ#    #
          *    #       ║   #

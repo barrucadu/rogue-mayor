@@ -18,6 +18,8 @@ pub enum Command {
     Render,
     /// Change the selected cell and re-render the UI without advancing a turn.
     SetCursorTo(Point),
+    /// Change the active template and re-render the UI without advancing a turn.
+    SetTemplateTo(Templates),
     /// Advance one turn without doing any user action.
     Skip,
 }
