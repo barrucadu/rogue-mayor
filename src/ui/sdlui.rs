@@ -27,33 +27,33 @@ const FONT_PATH: &'static str = "FSEX300.ttf";
 const FONT_SIZE: u16 = 12;
 
 // Size of the visible viewport, in grid cells.
-const VIEWPORT_CELL_HEIGHT: usize = 50;
-const VIEWPORT_CELL_WIDTH: usize = 100;
+const VIEWPORT_CELL_HEIGHT: u32 = 50;
+const VIEWPORT_CELL_WIDTH: u32 = 100;
 
 // Everything is done in terms of rows and columns, which are made of
 // fixed-size cells.
-const CELL_PIXEL_HEIGHT: usize = 16;
-const CELL_PIXEL_WIDTH: usize = 16;
+const CELL_PIXEL_HEIGHT: u32 = 16;
+const CELL_PIXEL_WIDTH: u32 = 16;
 
 // Number of rows gap between log entries and the map.
-const LOG_GAP: usize = 2;
+const LOG_GAP: u32 = 2;
 
 // Number of log entries to display above the map.
-const LOG_ENTRIES_VISIBLE: usize = 7;
+const LOG_ENTRIES_VISIBLE: u32 = 7;
 
 // Number of cells to "overshoot" the cursor by when scrolling.
 const SCROLL_OVERSHOOT: usize = 25;
 
 // Some helpful derived stuff
-const SCREEN_WIDTH: u32 = (CELL_PIXEL_WIDTH * VIEWPORT_CELL_WIDTH) as u32;
-const SCREEN_HEIGHT: u32 =
-    (CELL_PIXEL_HEIGHT * (LOG_ENTRIES_VISIBLE + LOG_GAP + VIEWPORT_CELL_HEIGHT)) as u32;
+const SCREEN_WIDTH: u32 = (CELL_PIXEL_WIDTH * VIEWPORT_CELL_WIDTH);
+const SCREEN_HEIGHT: u32 = (CELL_PIXEL_HEIGHT *
+                            (LOG_ENTRIES_VISIBLE + LOG_GAP + VIEWPORT_CELL_HEIGHT));
 
 /// A user interface using SDL2.
 #[allow(missing_debug_implementations,missing_copy_implementations)]
 pub struct SdlUI {
     /// The top-left of the viewport.
-    viewport: Point,
+    viewport: Viewport,
     /// The main interface to SDL.
     context: Sdl,
     /// The event pump: used to wait for and gather input events.
@@ -90,8 +90,8 @@ enum Style {
 impl UI for SdlUI {
     fn initial_cursor() -> Point {
         Point {
-            x: VIEWPORT_CELL_WIDTH / 2,
-            y: VIEWPORT_CELL_HEIGHT / 2,
+            x: VIEWPORT_CELL_WIDTH as usize / 2,
+            y: VIEWPORT_CELL_HEIGHT as usize / 2,
         }
     }
 
@@ -161,7 +161,7 @@ impl UI for SdlUI {
             }
             keydown!(Up) => {
                 if self.is_scrolling {
-                    self.viewport.y = self.viewport.y.saturating_sub(step);
+                    self.viewport.top_left.y = self.viewport.top_left.y.saturating_sub(step);
                     self.scroll_viewport(cursor, 0);
                     Command::Render
                 } else {
@@ -173,7 +173,8 @@ impl UI for SdlUI {
             }
             keydown!(Down) => {
                 if self.is_scrolling {
-                    self.viewport.y = cmp::min(HEIGHT, self.viewport.y.saturating_add(step));
+                    self.viewport.top_left.y =
+                        cmp::min(HEIGHT, self.viewport.top_left.y.saturating_add(step));
                     self.scroll_viewport(cursor, 0);
                     Command::Render
                 } else {
@@ -185,7 +186,7 @@ impl UI for SdlUI {
             }
             keydown!(Left) => {
                 if self.is_scrolling {
-                    self.viewport.x = self.viewport.x.saturating_sub(step);
+                    self.viewport.top_left.x = self.viewport.top_left.x.saturating_sub(step);
                     self.scroll_viewport(cursor, 0);
                     Command::Render
                 } else {
@@ -197,7 +198,8 @@ impl UI for SdlUI {
             }
             keydown!(Right) => {
                 if self.is_scrolling {
-                    self.viewport.x = cmp::min(WIDTH, self.viewport.x.saturating_add(step));
+                    self.viewport.top_left.x =
+                        cmp::min(WIDTH, self.viewport.top_left.x.saturating_add(step));
                     self.scroll_viewport(cursor, 0);
                     Command::Render
                 } else {
@@ -255,7 +257,11 @@ impl SdlUI {
         let ttf = ftry!(sdl2::ttf::init());
 
         Ok(SdlUI {
-            viewport: Point { x: 0, y: 0 },
+            viewport: Viewport {
+                top_left: Point { x: 0, y: 0 },
+                width: VIEWPORT_CELL_WIDTH as usize,
+                height: VIEWPORT_CELL_HEIGHT as usize,
+            },
             context: context,
             events: events,
             video: video,
@@ -271,19 +277,21 @@ impl SdlUI {
 
     /// Render the cursor.
     fn render_cursor(&mut self, cursor: Point) {
-        let font = self.ttf.load_font(Path::new(FONT_PATH), FONT_SIZE).unwrap();
-        let color = if self.is_mousing {
-            Color::RGB(150, 150, 255)
-        } else {
-            Color::RGB(255, 255, 255)
-        };
-        let surface = font.render("@").blended(color).unwrap();
-        let mut texture = self.renderer.create_texture_from_surface(&surface).unwrap();
-        render_in(&mut self.renderer,
-                  &mut texture,
-                  cell_rect(self.viewport, cursor),
-                  true,
-                  true);
+        if let Some(cursor_pos) = self.viewport.to_screenpos(cursor) {
+            let font = self.ttf.load_font(Path::new(FONT_PATH), FONT_SIZE).unwrap();
+            let color = if self.is_mousing {
+                Color::RGB(150, 150, 255)
+            } else {
+                Color::RGB(255, 255, 255)
+            };
+            let surface = font.render("@").blended(color).unwrap();
+            let mut texture = self.renderer.create_texture_from_surface(&surface).unwrap();
+            render_in(&mut self.renderer,
+                      &mut texture,
+                      cursor_pos.rect(),
+                      true,
+                      true);
+        }
     }
 
     /// Render the message log.
@@ -292,11 +300,11 @@ impl SdlUI {
 
         let color = Color::RGB(255, 255, 255);
         let mut done = 0;
-        for msg in world.messages.iter().take(LOG_ENTRIES_VISIBLE) {
+        for msg in world.messages.iter().take(LOG_ENTRIES_VISIBLE as usize) {
             let bbox = Rect::new(0,
                                  ((LOG_ENTRIES_VISIBLE - done - 1) * CELL_PIXEL_HEIGHT) as i32,
                                  SCREEN_WIDTH,
-                                 CELL_PIXEL_HEIGHT as u32);
+                                 CELL_PIXEL_HEIGHT);
             let surface = font.render(msg.msg.as_str()).blended(color).unwrap();
             let mut texture = self.renderer.create_texture_from_surface(&surface).unwrap();
             render_in(&mut self.renderer, &mut texture, bbox, false, true);
@@ -335,8 +343,10 @@ impl SdlUI {
         }
 
         // Render every cell.
-        for y in self.viewport.y..cmp::min(HEIGHT, self.viewport.y + VIEWPORT_CELL_HEIGHT) {
-            for x in self.viewport.x..cmp::min(WIDTH, self.viewport.x + VIEWPORT_CELL_WIDTH) {
+        let min_y = self.viewport.top_left.y;
+        let min_x = self.viewport.top_left.x;
+        for y in min_y..cmp::min(HEIGHT, min_y + self.viewport.height) {
+            for x in min_x..cmp::min(WIDTH, min_x + self.viewport.width) {
                 let here = Point { x: x, y: y };
                 let color = if self.show_heatmap {
                     let val = map.at(here);
@@ -378,17 +388,17 @@ impl SdlUI {
 
     /// Scroll the viewport, with the given amount of overshoot, to fit the cursor.
     fn scroll_viewport(&mut self, cursor: Point, overshoot: usize) {
-        if cursor.x < self.viewport.x {
-            self.viewport.x = cursor.x.saturating_sub(overshoot);
-        } else if cursor.x > self.viewport.x + VIEWPORT_CELL_WIDTH {
-            self.viewport.x = cmp::min(WIDTH - VIEWPORT_CELL_WIDTH,
-                                       cursor.x + overshoot - VIEWPORT_CELL_WIDTH)
+        if cursor.x < self.viewport.top_left.x {
+            self.viewport.top_left.x = cursor.x.saturating_sub(overshoot);
+        } else if cursor.x > self.viewport.top_left.x + self.viewport.width {
+            self.viewport.top_left.x = cmp::min(WIDTH - self.viewport.width,
+                                                cursor.x + overshoot - self.viewport.width)
         }
-        if cursor.y < self.viewport.y {
-            self.viewport.y = cursor.y.saturating_sub(overshoot);
-        } else if cursor.y > self.viewport.y + VIEWPORT_CELL_HEIGHT {
-            self.viewport.y = cmp::min(HEIGHT - VIEWPORT_CELL_HEIGHT,
-                                       cursor.y + overshoot - VIEWPORT_CELL_HEIGHT)
+        if cursor.y < self.viewport.top_left.y {
+            self.viewport.top_left.y = cursor.y.saturating_sub(overshoot);
+        } else if cursor.y > self.viewport.top_left.y + self.viewport.height {
+            self.viewport.top_left.y = cmp::min(HEIGHT - self.viewport.height,
+                                                cursor.y + overshoot - self.viewport.height)
         }
     }
 }
@@ -408,21 +418,24 @@ fn next_heatmap(heatmap: (Style, MapTag)) -> (Style, MapTag) {
 /// Render a cell.
 fn render_cell(renderer: &mut Renderer<'static>,
                font: &Font,
-               viewport: Point,
+               viewport: Viewport,
                cell: Point,
                s: Option<Static>,
                m: Option<&Mobile>,
                color: Option<Color>) {
-    let rect = cell_rect(viewport, cell);
-    if let Some(c) = color {
-        renderer.set_draw_color(c);
-        let _ = renderer.fill_rect(rect);
-    }
+    if let Some(cell_screenpos) = viewport.to_screenpos(cell) {
+        let rect = cell_screenpos.rect();
 
-    match (m, s) {
-        (Some(mob), _) => render_mobile(renderer, font, rect, mob),
-        (_, Some(stat)) => render_static(renderer, font, rect, &stat),
-        _ => {}
+        if let Some(c) = color {
+            renderer.set_draw_color(c);
+            let _ = renderer.fill_rect(rect);
+        }
+
+        match (m, s) {
+            (Some(mob), _) => render_mobile(renderer, font, rect, mob),
+            (_, Some(stat)) => render_static(renderer, font, rect, &stat),
+            _ => {}
+        }
     }
 }
 
@@ -500,22 +513,52 @@ fn render_in(renderer: &mut Renderer<'static>,
     let _ = renderer.copy(texture, None, Some(Rect::new(x, y, width, height)));
 }
 
-/// Get the `Rect` for a cell.
-fn cell_rect(viewport: Point, cell: Point) -> Rect {
-    let x = (cell.x - viewport.x) * CELL_PIXEL_WIDTH;
-    let y = (LOG_ENTRIES_VISIBLE + LOG_GAP + cell.y - viewport.y) * CELL_PIXEL_HEIGHT;
-    Rect::new(x as i32,
-              y as i32,
-              CELL_PIXEL_WIDTH as u32,
-              CELL_PIXEL_HEIGHT as u32)
+/// Get the cursor position from the mouse.
+fn cursor_from_mouse(viewport: Viewport, x: i32, y: i32) -> Point {
+    let cell_x = x as u32 / CELL_PIXEL_WIDTH;
+    let cell_y = (y as u32 / CELL_PIXEL_HEIGHT).saturating_sub(LOG_ENTRIES_VISIBLE + LOG_GAP);
+    Point {
+        x: cell_x as usize + viewport.top_left.x,
+        y: cell_y as usize + viewport.top_left.y,
+    }
 }
 
-/// Get the cursor position from the mouse.
-fn cursor_from_mouse(viewport: Point, x: i32, y: i32) -> Point {
-    let cell_x = x as usize / CELL_PIXEL_WIDTH;
-    let cell_y = (y as usize / CELL_PIXEL_HEIGHT).saturating_sub(LOG_ENTRIES_VISIBLE + LOG_GAP);
-    Point {
-        x: cell_x + viewport.x,
-        y: cell_y + viewport.y,
+/// Screen positions, as CELL_PIXEL_WIDTHxCELL_PIXEL_HEIGHT boxes.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct ScreenPos {
+    x: u32,
+    y: u32,
+}
+
+impl ScreenPos {
+    /// Get the `Rect` that this position corresponds to.
+    fn rect(&self) -> Rect {
+        Rect::new((self.x * CELL_PIXEL_WIDTH) as i32,
+                  ((self.y + LOG_ENTRIES_VISIBLE + LOG_GAP) * CELL_PIXEL_HEIGHT) as i32,
+                  CELL_PIXEL_WIDTH,
+                  CELL_PIXEL_HEIGHT)
+    }
+}
+
+/// The viewport.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct Viewport {
+    top_left: Point,
+    width: usize,
+    height: usize,
+}
+
+impl Viewport {
+    /// Turn a point in the world into a `ScrenPos`, if it's on screen.
+    fn to_screenpos(&self, p: Point) -> Option<ScreenPos> {
+        if p.x < self.top_left.x || p.y < self.top_left.y || p.x > self.top_left.x + self.width ||
+           p.y > self.top_left.y + self.height {
+            None
+        } else {
+            Some(ScreenPos {
+                x: (p.x - self.top_left.x) as u32,
+                y: (p.y - self.top_left.y) as u32,
+            })
+        }
     }
 }
