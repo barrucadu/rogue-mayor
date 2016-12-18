@@ -27,14 +27,17 @@ use ui::UI;
 const FONT_PATH: &'static str = "FSEX300.ttf";
 const FONT_SIZE: u16 = 12;
 
-// Size of the visible viewport, in grid cells.
+// Size of the visible viewport, in cells.
 const DEFAULT_VIEWPORT_CELL_HEIGHT: u32 = 50;
-const DEFAULT_VIEWPORT_CELL_WIDTH: u32 = 100;
+const DEFAULT_VIEWPORT_CELL_WIDTH: u32 = 75;
 
 // Everything is done in terms of rows and columns, which are made of
 // fixed-size cells.
 const DEFAULT_CELL_PIXEL_HEIGHT: u32 = 16;
 const DEFAULT_CELL_PIXEL_WIDTH: u32 = 16;
+
+// Width of the sidebar, in cells.
+const SIDEBAR_WIDTH: u32 = 25;
 
 // Thickness of a border, in cells.
 const BORDER_THICKNESS: u32 = 1;
@@ -97,6 +100,9 @@ impl UI for SdlUI {
 
         // Render the message log.
         self.render_log(world);
+
+        // Render the help/control sidebar.
+        self.render_sidebar();
 
         // Render the world OR heatmap.
         self.render_world(mobs, maps, world);
@@ -313,21 +319,30 @@ impl SdlUI {
     fn render_log(&mut self, world: &World) {
         let font = self.ttf.load_font(Path::new(FONT_PATH), FONT_SIZE).unwrap();
 
+        let log_width = self.screen.cell_width() - BORDER_THICKNESS - SIDEBAR_WIDTH;
+        let log_height = LOG_ENTRIES_VISIBLE + 2 * BORDER_THICKNESS;
+
         let color = Color::RGB(255, 255, 255);
         let mut done = 0;
         for msg in world.messages.iter().take(LOG_ENTRIES_VISIBLE as usize) {
             let bbox = ScreenRect::new(BORDER_THICKNESS,
                                        ((LOG_ENTRIES_VISIBLE - done - 1 + BORDER_THICKNESS)),
-                                       self.screen.cell_width(),
+                                       log_width - 2,
                                        1);
             let surface = font.render(msg.msg.as_str()).blended(color).unwrap();
             self.screen.render_in_rect(&surface, bbox, false, true);
             done += 1;
         }
 
-        let log_width = self.screen.cell_width();
-        let log_height = LOG_ENTRIES_VISIBLE + 2 * BORDER_THICKNESS;
         self.screen.render_border(ScreenRect::new(0, 0, log_width, log_height));
+    }
+
+    /// Render the sidebar.
+    fn render_sidebar(&mut self) {
+        let sidebar_x = self.screen.cell_width() - 2 * BORDER_THICKNESS - SIDEBAR_WIDTH;
+        let sidebar_width = SIDEBAR_WIDTH + 2 * BORDER_THICKNESS;
+        let sidebar_height = self.screen.cell_height();
+        self.screen.render_border(ScreenRect::new(sidebar_x, 0, sidebar_width, sidebar_height));
     }
 
     /// Render the world, with a heatmap overlay if enabled.
@@ -449,7 +464,7 @@ impl Screen {
 
     /// Width of the screen in cells.
     fn cell_width(&self) -> u32 {
-        self.viewport_width + BORDER_THICKNESS * 2
+        self.viewport_width + SIDEBAR_WIDTH + BORDER_THICKNESS * 3
     }
 
     /// Height of the screen in cells.
