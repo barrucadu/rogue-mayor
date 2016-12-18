@@ -25,6 +25,10 @@ use ui::UI;
 // The font
 const FONT_PATH: &'static str = "font.png";
 const FONT_CHAR_WIDTH: u8 = 16;
+const FONT_PIXEL_WIDTH: u32 = 12;
+const FONT_PIXEL_HEIGHT: u32 = 12;
+const FONT_PIXEL_OFF_HORIZ: u32 = 2;
+const FONT_PIXEL_OFF_VERT: u32 = 0;
 
 // Size of the visible viewport, in cells.
 const DEFAULT_VIEWPORT_CELL_HEIGHT: u32 = 50;
@@ -32,8 +36,8 @@ const DEFAULT_VIEWPORT_CELL_WIDTH: u32 = 75;
 
 // Everything is done in terms of rows and columns, which are made of
 // fixed-size cells.
-const DEFAULT_CELL_PIXEL_HEIGHT: u32 = 12;
-const DEFAULT_CELL_PIXEL_WIDTH: u32 = 12;
+const DEFAULT_CELL_PIXEL_HEIGHT: u32 = FONT_PIXEL_HEIGHT - 2 * FONT_PIXEL_OFF_VERT;
+const DEFAULT_CELL_PIXEL_WIDTH: u32 = FONT_PIXEL_WIDTH - 2 * FONT_PIXEL_OFF_HORIZ;
 
 // Width of the sidebar, in cells.
 const SIDEBAR_WIDTH: u32 = 25;
@@ -705,10 +709,10 @@ impl Screen {
                 for b in bytes {
                     let x = (b % FONT_CHAR_WIDTH) as u32;
                     let y = (b / FONT_CHAR_WIDTH) as u32;
-                    let src = Rect::new((x * self.cell_pixel_width) as i32,
-                                        (y * self.cell_pixel_height) as i32,
-                                        self.cell_pixel_width,
-                                        self.cell_pixel_height);
+                    let src = Rect::new((x * FONT_PIXEL_WIDTH + FONT_PIXEL_OFF_HORIZ) as i32,
+                                        (y * FONT_PIXEL_HEIGHT + FONT_PIXEL_OFF_VERT) as i32,
+                                        FONT_PIXEL_WIDTH - 2 * FONT_PIXEL_OFF_HORIZ,
+                                        FONT_PIXEL_HEIGHT - 2 * FONT_PIXEL_OFF_VERT);
                     let _ = renderer.copy(&font, Some(src), Some(dst));
                     let old_x = dst.x();
                     dst.set_x(old_x + self.cell_pixel_width as i32);
