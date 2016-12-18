@@ -80,6 +80,8 @@ pub struct SdlUI {
     is_zooming: bool,
     /// Whether we're scrolling the viewport or not (alt held down).
     is_scrolling: bool,
+    /// Whether we're paused or not.
+    is_paused: bool,
     /// What to display in the sidebar.
     menu: Menu,
     /// Increments (wrapping) on every frame.
@@ -112,7 +114,11 @@ impl UI for SdlUI {
         }
     }
 
-    fn render(&mut self, mobs: &BTreeMap<Point, Mobile>, maps: &Maps, world: &World) {
+    fn render(&mut self,
+              mobs: &BTreeMap<Point, Mobile>,
+              maps: &Maps,
+              world: &World,
+              has_advanced: bool) {
         self.screen.clear();
 
         // Scroll the viewport if the cursor is outside of it.
@@ -141,9 +147,11 @@ impl UI for SdlUI {
         self.screen.render_border(ScreenRect::new(0, 0, full_width, full_height));
 
         // The indicator.
+        if has_advanced {
+            self.indicator = self.indicator.wrapping_add(1);
+        }
         let texture = self.screen.render_bytes(&[self.indicator], Color::RGB(150, 200, 250));
         self.screen.render_in_cell(&texture, ScreenPos { x: 0, y: 0 });
-        self.indicator = self.indicator.wrapping_add(1);
 
         // Finally, display everything.
         self.screen.present();
@@ -153,11 +161,16 @@ impl UI for SdlUI {
         // Wait until it's time for the next frame.
         let _ = self.fps.delay();
 
-        // Check for an event.
-        if let Some(event) = self.events.poll_event() {
-            self.input_handler(event, cursor)
+        // Check for an event, or wait for one if we're paused.
+        let event = if self.is_paused {
+            Some(self.events.wait_event())
         } else {
-            Command::Skip
+            self.events.poll_event()
+        };
+        if let Some(ev) = event {
+            self.input_handler(ev, cursor)
+        } else {
+            Command::Step
         }
     }
 }
@@ -215,6 +228,7 @@ impl SdlUI {
             is_mousing: false,
             is_zooming: false,
             is_scrolling: false,
+            is_paused: true,
             menu: Menu::Main,
             indicator: 0,
         })
@@ -277,6 +291,13 @@ impl SdlUI {
                     Command::Render
                 }
             }
+
+            // Execution
+            keydown!(Space) => {
+                self.is_paused = !self.is_paused;
+                Command::Render
+            }
+            keydown!(Period) => Command::Step,
 
             // Window
             Event::Window { win_event: WindowEvent::Resized(w, h), .. } |
@@ -373,7 +394,6 @@ impl SdlUI {
             // Exit
             Event::Quit { .. } |
             Event::AppTerminating { .. } => Command::Quit,
-            keydown!(Space) => Command::Skip,
 
             // Ignore unexpected input.
             _ => self.input(cursor),
@@ -420,7 +440,14 @@ impl SdlUI {
         let sidebar_height = self.screen.cell_height();
 
         let controls = match self.menu {
-            Menu::Main => vec![vec![("b", "Building")]],
+            Menu::Main => {
+                vec![vec![("b", "Building")],
+                     if self.is_paused {
+                         vec![("SPC", "Resume"), (".", "Single-step")]
+                     } else {
+                         vec![("SPC", "Pause")]
+                     }]
+            }
             Menu::Template => {
                 vec![vec![("g", "General Store"), ("i", "Inn")],
                      vec![("RET", "Build at cursor"), ("ESC", "Return to main menu")]]

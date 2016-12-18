@@ -11,7 +11,7 @@ use types::*;
 /// The UI. Implemented as a trait to allow for differing implementations.
 pub trait UI {
     /// Render
-    fn render(&mut self, &BTreeMap<Point, Mobile>, &Maps, &World);
+    fn render(&mut self, &BTreeMap<Point, Mobile>, &Maps, &World, bool);
 
     /// Await input.
     fn input(&mut self, cursor: Point) -> Command;

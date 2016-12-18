@@ -56,10 +56,12 @@ fn main() {
                 }
                 mobs = new_mobs;
 
+                let mut has_advanced = true;
                 'ui: loop {
                     // Render the world now, so the player has an up-to-date view before they are
                     // prompted for their next action.
-                    ui.render(&mobs, &maps, &world);
+                    ui.render(&mobs, &maps, &world, has_advanced);
+                    has_advanced = false;
 
                     // Prompt for user input and perform the desired action.
                     let action = ui.input(world.cursor);
@@ -67,13 +69,12 @@ fn main() {
                         Command::BuildTemplate => {
                             world.build(&mut maps);
                             world.template = None;
-                            break 'ui;
                         }
                         Command::Quit => break 'game,
                         Command::Render => {}
                         Command::SetCursorTo(c) => world.cursor = c,
                         Command::SetTemplateTo(t) => world.template = Some(Template::new(t)),
-                        Command::Skip => break 'ui,
+                        Command::Step => break 'ui,
                     }
 
                     // Testing the message log.

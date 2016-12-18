@@ -14,14 +14,14 @@ pub enum Command {
     BuildTemplate,
     /// Terminate.
     Quit,
-    /// Render the UI without advancing a turn.
+    /// Re-render the UI.
     Render,
-    /// Change the selected cell and re-render the UI without advancing a turn.
+    /// Change the selected cell.
     SetCursorTo(Point),
-    /// Change the active template and re-render the UI without advancing a turn.
+    /// Change the active template.
     SetTemplateTo(Templates),
-    /// Advance one turn without doing any user action.
-    Skip,
+    /// Advance one turn.
+    Step,
 }
 
 /// The state of the vsible map and the larger game world.
