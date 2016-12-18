@@ -35,8 +35,8 @@ const VIEWPORT_CELL_WIDTH: u32 = 100;
 const CELL_PIXEL_HEIGHT: u32 = 16;
 const CELL_PIXEL_WIDTH: u32 = 16;
 
-// Number of rows gap between log entries and the map.
-const LOG_GAP: u32 = 2;
+// Thickness of a border, in cells.
+const BORDER_THICKNESS: u32 = 1;
 
 // Number of log entries to display above the map.
 const LOG_ENTRIES_VISIBLE: u32 = 7;
@@ -45,9 +45,9 @@ const LOG_ENTRIES_VISIBLE: u32 = 7;
 const SCROLL_OVERSHOOT: usize = 25;
 
 // Some helpful derived stuff
-const SCREEN_WIDTH: u32 = (CELL_PIXEL_WIDTH * VIEWPORT_CELL_WIDTH);
-const SCREEN_HEIGHT: u32 = (CELL_PIXEL_HEIGHT *
-                            (LOG_ENTRIES_VISIBLE + LOG_GAP + VIEWPORT_CELL_HEIGHT));
+const SCREEN_WIDTH: u32 = CELL_PIXEL_WIDTH * (VIEWPORT_CELL_WIDTH + BORDER_THICKNESS * 2);
+const SCREEN_HEIGHT: u32 = CELL_PIXEL_HEIGHT *
+                           (LOG_ENTRIES_VISIBLE + BORDER_THICKNESS * 3 + VIEWPORT_CELL_HEIGHT);
 
 /// A user interface using SDL2.
 #[allow(missing_debug_implementations,missing_copy_implementations)]
@@ -115,6 +115,10 @@ impl UI for SdlUI {
 
         // Display the cursor on top of everything else.
         self.render_cursor(world.cursor);
+
+        // The window frame
+        render_border(&mut self.renderer,
+                      Rect::new(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT));
 
         // Finally, display everything.
         self.renderer.present();
@@ -301,8 +305,9 @@ impl SdlUI {
         let color = Color::RGB(255, 255, 255);
         let mut done = 0;
         for msg in world.messages.iter().take(LOG_ENTRIES_VISIBLE as usize) {
-            let bbox = Rect::new(0,
-                                 ((LOG_ENTRIES_VISIBLE - done - 1) * CELL_PIXEL_HEIGHT) as i32,
+            let bbox = Rect::new((BORDER_THICKNESS * CELL_PIXEL_WIDTH) as i32,
+                                 ((LOG_ENTRIES_VISIBLE - done - 1 + BORDER_THICKNESS) *
+                                  CELL_PIXEL_HEIGHT) as i32,
                                  SCREEN_WIDTH,
                                  CELL_PIXEL_HEIGHT);
             let surface = font.render(msg.msg.as_str()).blended(color).unwrap();
@@ -310,6 +315,12 @@ impl SdlUI {
             render_in(&mut self.renderer, &mut texture, bbox, false, true);
             done += 1;
         }
+
+        render_border(&mut self.renderer,
+                      Rect::new(0,
+                                0,
+                                SCREEN_WIDTH,
+                                (LOG_ENTRIES_VISIBLE + 2) * CELL_PIXEL_HEIGHT));
     }
 
     /// Render the world, with a heatmap overlay if enabled.
@@ -415,6 +426,24 @@ fn next_heatmap(heatmap: (Style, MapTag)) -> (Style, MapTag) {
     }
 }
 
+/// Render a border. This does not render over the area within the border.
+fn render_border(renderer: &mut Renderer<'static>, bbox: Rect) {
+    let hthickness = BORDER_THICKNESS * CELL_PIXEL_WIDTH;
+    let vthickness = BORDER_THICKNESS * CELL_PIXEL_HEIGHT;
+
+    let x1 = bbox.x();
+    let y1 = bbox.y();
+    let x2 = x1 + bbox.width() as i32 - hthickness as i32;
+    let y2 = y1 + bbox.height() as i32 - vthickness as i32;
+
+    renderer.set_draw_color(Color::RGB(115, 115, 115));
+
+    let _ = renderer.fill_rect(Rect::new(x1, y1, bbox.width(), vthickness));
+    let _ = renderer.fill_rect(Rect::new(x1, y1, hthickness, bbox.height()));
+    let _ = renderer.fill_rect(Rect::new(x1, y2, bbox.width(), vthickness));
+    let _ = renderer.fill_rect(Rect::new(x2, y1, hthickness, bbox.height()));
+}
+
 /// Render a cell.
 fn render_cell(renderer: &mut Renderer<'static>,
                font: &Font,
@@ -515,8 +544,9 @@ fn render_in(renderer: &mut Renderer<'static>,
 
 /// Get the cursor position from the mouse.
 fn cursor_from_mouse(viewport: Viewport, x: i32, y: i32) -> Point {
-    let cell_x = x as u32 / CELL_PIXEL_WIDTH;
-    let cell_y = (y as u32 / CELL_PIXEL_HEIGHT).saturating_sub(LOG_ENTRIES_VISIBLE + LOG_GAP);
+    let cell_x = (x as u32 / CELL_PIXEL_WIDTH).saturating_sub(BORDER_THICKNESS);
+    let cell_y = (y as u32 / CELL_PIXEL_HEIGHT)
+        .saturating_sub(LOG_ENTRIES_VISIBLE + BORDER_THICKNESS * 2);
     Point {
         x: cell_x as usize + viewport.top_left.x,
         y: cell_y as usize + viewport.top_left.y,
@@ -533,8 +563,9 @@ struct ScreenPos {
 impl ScreenPos {
     /// Get the `Rect` that this position corresponds to.
     fn rect(&self) -> Rect {
-        Rect::new((self.x * CELL_PIXEL_WIDTH) as i32,
-                  ((self.y + LOG_ENTRIES_VISIBLE + LOG_GAP) * CELL_PIXEL_HEIGHT) as i32,
+        Rect::new(((self.x + BORDER_THICKNESS) * CELL_PIXEL_WIDTH) as i32,
+                  ((self.y + LOG_ENTRIES_VISIBLE + BORDER_THICKNESS * 2) *
+                   CELL_PIXEL_HEIGHT) as i32,
                   CELL_PIXEL_WIDTH,
                   CELL_PIXEL_HEIGHT)
     }
