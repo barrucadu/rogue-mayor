@@ -47,7 +47,7 @@ fn main() {
                 // been killed) and step it. This may also mutate the maps, if a mob performs a
                 // map-relevant action.
                 let mut new_mobs = mobs.clone();
-                for (pos, mob) in &mobs {
+                for (pos, mob) in mobs.iter_mut() {
                     // This check is perhaps too lenient. For example, if Mob A destroys Mob B and
                     // creates Mob C in the same place, then Mob C will get a turn, even though it
                     // is new. This can be explained away by saying that Mob B wasn't destroyed,

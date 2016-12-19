@@ -23,7 +23,7 @@ pub struct Mobile {
 
 impl Mobile {
     /// Do a turn.
-    pub fn step(&self,
+    pub fn step(&mut self,
                 pos: Point,
                 mobs: &mut BTreeMap<Point, Mobile>,
                 maps: &mut Maps,
@@ -34,17 +34,13 @@ impl Mobile {
         if new_pos == pos {
             // If we don't move, perform an action where we are and possibly adjust the desire
             // weights.
-            let mut new_mob = self.clone();
-            new_mob.interact_at_point(pos, pos, mobs, maps, world);
-            let _ = mobs.insert(pos, new_mob);
+            self.interact_at_point(pos, pos, mobs, maps, world);
         } else if is_occupied(new_pos, mobs, world) {
             // If the chosen point is occupied AND a local minimum, then it contains a (solid) goal
             // which we can interact with from this adjacent square. If not, we're just stuck for
             // this turn and sit on our hands (or claws, whatever).
             if self.heatmap_ai(new_pos, maps, world) == new_pos {
-                let mut new_mob = self.clone();
-                new_mob.interact_at_point(pos, new_pos, mobs, maps, world);
-                let _ = mobs.insert(pos, new_mob);
+                self.interact_at_point(pos, new_pos, mobs, maps, world);
             }
         } else {
             // Otherwise move to the new position.
