@@ -119,6 +119,11 @@ impl UI for SdlUI {
               maps: &Maps,
               world: &World,
               has_advanced: bool) {
+        // Tick the real-time indicator.
+        if has_advanced {
+            self.indicator = self.indicator.wrapping_add(1);
+        }
+
         self.screen.clear();
 
         // Scroll the viewport if the cursor is outside of it.
@@ -146,12 +151,8 @@ impl UI for SdlUI {
         let full_height = self.screen.cell_height();
         self.screen.render_border(ScreenRect::new(0, 0, full_width, full_height));
 
-        // The indicator.
-        if has_advanced {
-            self.indicator = self.indicator.wrapping_add(1);
-        }
-        let texture = self.screen.render_bytes(&[self.indicator], Color::RGB(150, 200, 250));
-        self.screen.render_in_cell(&texture, ScreenPos { x: 0, y: 0 });
+        // The status.
+        self.render_status();
 
         // Finally, display everything.
         self.screen.present();
@@ -410,6 +411,33 @@ impl SdlUI {
             };
             let texture = self.screen.render_text('@'.to_string(), color);
             self.screen.render_in_cell(&texture, cursor_pos);
+        }
+    }
+
+    /// Render the status.
+    fn render_status(&mut self) {
+        // Title
+        {
+            let srect = ScreenRect::new((self.screen.cell_width() - 18) / 2, 0, 18, 1);
+            self.screen.fill_rect(srect, Color::RGB(200, 200, 200));
+            let texture = self.screen.render_text("Rogue Mayor".to_string(), Color::RGB(0, 0, 0));
+            self.screen.render_in_rect(&texture, srect, true, true);
+        }
+
+        // Indicator
+        {
+            let texture = self.screen.render_bytes(&[self.indicator], Color::RGB(150, 200, 250));
+            let max_y = self.screen.cell_height() - 1;
+            self.screen.render_in_cell(&texture, ScreenPos { x: 0, y: max_y });
+        }
+
+        // Pause flag
+        if self.is_paused {
+            let srect = ScreenRect::new(1, 0, 8, 1);
+            self.screen.fill_rect(srect, Color::RGB(75, 150, 100));
+            let texture = self.screen
+                .render_text("*PAUSED*".to_string(), Color::RGB(200, 255, 255));
+            self.screen.render_in_rect(&texture, srect, false, true);
         }
     }
 
