@@ -33,3 +33,56 @@ pub fn signed_add(u: usize, s: i8) -> usize {
 pub fn is_occupied(pos: Point, mobs: &BTreeMap<Point, Mobile>, world: &World) -> bool {
     mobs.get(&pos).is_some() || world.statics.at(pos).map_or(false, |s| s.impassable())
 }
+
+/// Check if a tile can be seen from another.
+pub fn can_see(start: Point, end: Point, world: &World) -> bool {
+    let mut pos = start;
+
+    let (dx, ix) = make_delta(pos.x, end.x);
+    let (dy, iy) = make_delta(pos.y, end.y);
+
+    let (inc_x, inc_y, mut err, err_inc, err_dec, corr_x, corr_y, counter) = if dx > dy {
+        (if ix { 1 } else { -1 },
+         0,
+         dy as i32 * 2 - dx as i32,
+         dy as i32 * 2,
+         dx as i32 * 2,
+         0,
+         if iy { 1 } else { -1 },
+         dx)
+    } else {
+        (0,
+         if iy { 1 } else { -1 },
+         dx as i32 * 2 - dy as i32,
+         dx as i32 * 2,
+         dy as i32 * 2,
+         if ix { 1 } else { -1 },
+         0,
+         dy)
+    };
+
+    for _ in 0..counter {
+        if err >= 0 {
+            err -= err_dec;
+            pos.x = signed_add(pos.x, corr_x);
+            pos.y = signed_add(pos.y, corr_y);
+        }
+        err += err_inc;
+        pos.x = signed_add(pos.x, inc_x);
+        pos.y = signed_add(pos.y, inc_y);
+        if world.statics.at(pos).map_or(false, |s| s.opaque()) {
+            return false;
+        }
+    }
+
+    true
+}
+
+/// Take the delta between two values, and return the gradient.
+fn make_delta(start: usize, end: usize) -> (usize, bool) {
+    if start < end {
+        (end - start, true)
+    } else {
+        (start - end, false)
+    }
+}

@@ -6,6 +6,7 @@ use dijkstra_map::*;
 use grid::*;
 use statics::*;
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::f64;
 use types::*;
 use utils::*;
@@ -29,7 +30,7 @@ impl Mobile {
                 maps: &mut Maps,
                 world: &mut World) {
         // Compute a position to move to based on the desires of the mob.
-        let new_pos = self.heatmap_ai(pos, maps);
+        let new_pos = self.heatmap_ai(pos, maps, world);
 
         if new_pos == pos {
             // If we don't move, perform an action where we are and possibly adjust the desire
@@ -41,7 +42,7 @@ impl Mobile {
             // If the chosen point is occupied AND a local minimum, then it contains a (solid) goal
             // which we can interact with from this adjacent square. If not, we're just stuck for
             // this turn and sit on our hands (or claws, whatever).
-            if self.heatmap_ai(new_pos, maps) == new_pos {
+            if self.heatmap_ai(new_pos, maps, world) == new_pos {
                 let mut new_mob = self.clone();
                 new_mob.interact_at_point(pos, new_pos, mobs, maps, world);
                 let _ = mobs.insert(pos, new_mob);
@@ -59,7 +60,15 @@ impl Mobile {
     /// See:
     /// - http://www.roguebasin.com/index.php?title=The_Incredible_Power_of_Dijkstra_Maps
     /// - http://www.roguebasin.com/index.php?title=Dijkstra_Maps_Visualized
-    fn heatmap_ai(&self, pos: Point, maps: &Maps) -> Point {
+    fn heatmap_ai(&self, pos: Point, maps: &Maps, world: &World) -> Point {
+        // Work out what sources are visible from here.
+        let mut locally_visible = BTreeSet::new();
+        for (p, tag) in &world.sources {
+            if can_see(pos, *p, world) {
+                locally_visible.insert(tag);
+            }
+        }
+
         // Find the minimum weighted sum of all the heatmaps in the local area:
         let mut new_pos = pos;
         let mut min_so_far = f64::MAX;
@@ -77,7 +86,12 @@ impl Mobile {
                 // Compute the weight here.
                 let mut weight_here = 0.0;
                 for (tag, weight) in &self.desires {
-                    let wgt = *weight;
+                    let multiplier = if locally_visible.contains(tag) {
+                        100.0
+                    } else {
+                        1.0
+                    };
+                    let wgt = *weight * multiplier;
                     let map = maps.get(*tag);
                     let delta = if wgt > 0.0 {
                             &map.approach

@@ -31,6 +31,17 @@ impl Static {
         }
     }
 
+    /// If true, this acts as an obstruction to line-of-sight.
+    pub fn opaque(&self) -> bool {
+        match *self {
+            Static::Wall => true,
+            // For doors, assume that they're either open, or have
+            // some visible indication of what is behind them.
+            Static::Dungeon | Static::GStoreCounter | Static::InnCounter | Static::Bed |
+            Static::Door => false,
+        }
+    }
+
     /// The `MapTag` that this contributes to.
     pub fn maptag(&self) -> Option<MapTag> {
         match *self {
