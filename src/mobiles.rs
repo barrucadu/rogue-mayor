@@ -15,7 +15,7 @@ use utils::*;
 pub struct Mobile {
     /// If the mob is especially brave or not. At the moment this only leads to greater risk-taking
     /// when fleeing something.
-    pub brave: bool,
+    pub is_brave: bool,
 
     /// Things this mob cares about, and the relative weightings it assigns to each.
     pub desires: BTreeMap<MapTag, f64>,
@@ -95,7 +95,7 @@ impl Mobile {
                     let delta = if wgt > 0.0 {
                             &map.approach
                         } else {
-                            if self.brave {
+                            if self.is_brave {
                                 &map.flee_bravely
                             } else {
                                 &map.flee_cowardly
@@ -129,8 +129,7 @@ impl Mobile {
         }
     }
 
-    /// Reduce the weight of a desire by a certain amount, to a
-    /// minimum of 0.
+    /// Reduce the weight of a desire by a certain amount, to a minimum of 0.
     fn satisfy_desire(&mut self, tag: MapTag, by: f64) {
         if let Some(old) = self.desires.clone().get(&tag) {
             let new = old - by;
