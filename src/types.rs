@@ -26,6 +26,7 @@ pub enum Command {
 }
 
 /// The state of the vsible map and the larger game world.
+#[derive(Debug)]
 pub struct World {
     /// Things which have a fixed presence and location in the world.
     pub statics: Grid<Option<Static>>,

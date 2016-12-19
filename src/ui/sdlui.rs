@@ -56,7 +56,7 @@ const LOG_ENTRIES_VISIBLE: u32 = 7;
 const SCROLL_OVERSHOOT: usize = 25;
 
 /// A user interface using SDL2.
-#[allow(missing_debug_implementations,missing_copy_implementations)]
+#[allow(dead_code,missing_debug_implementations,missing_copy_implementations)]
 pub struct SdlUI {
     /// The screen configuration.
     screen: Screen,
