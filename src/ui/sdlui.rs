@@ -409,8 +409,7 @@ impl SdlUI {
             } else {
                 Color::RGB(255, 255, 255)
             };
-            let texture = self.screen.render_text('@'.to_string(), color);
-            self.screen.render_in_cell(&texture, cursor_pos);
+            self.screen.render_text(vec![('@'.to_string(), color)], None, cursor_pos);
         }
     }
 
@@ -418,10 +417,13 @@ impl SdlUI {
     fn render_status(&mut self) {
         // Title
         {
-            let srect = ScreenRect::new((self.screen.cell_width() - 18) / 2, 0, 18, 1);
-            self.screen.fill_rect(srect, Color::RGB(200, 200, 200));
-            let texture = self.screen.render_text("Rogue Mayor".to_string(), Color::RGB(0, 0, 0));
-            self.screen.render_in_rect(&texture, srect, true, true);
+            let pos = ScreenPos {
+                x: (self.screen.cell_width() - 15) / 2,
+                y: 0,
+            };
+            self.screen.render_text(vec![("  Rogue Mayor  ".to_string(), Color::RGB(0, 0, 0))],
+                                    Some(Color::RGB(200, 200, 200)),
+                                    pos);
         }
 
         // Indicator
@@ -433,11 +435,10 @@ impl SdlUI {
 
         // Pause flag
         if self.is_paused {
-            let srect = ScreenRect::new(1, 0, 8, 1);
-            self.screen.fill_rect(srect, Color::RGB(75, 150, 100));
-            let texture = self.screen
-                .render_text("*PAUSED*".to_string(), Color::RGB(200, 255, 255));
-            self.screen.render_in_rect(&texture, srect, false, true);
+            let pos = ScreenPos { x: 1, y: 0 };
+            self.screen.render_text(vec![("*PAUSED*".to_string(), Color::RGB(200, 255, 255))],
+                                    Some(Color::RGB(75, 150, 100)),
+                                    pos);
         }
     }
 
@@ -453,7 +454,7 @@ impl SdlUI {
                                        ((LOG_ENTRIES_VISIBLE - done - 1 + BORDER_THICKNESS)),
                                        log_width - 2,
                                        1);
-            let texture = self.screen.render_text(msg.msg.clone(), color);
+            let texture = self.screen.render_string(&msg.msg, color);
             self.screen.render_in_rect(&texture, bbox, false, true);
             done += 1;
         }
@@ -485,31 +486,14 @@ impl SdlUI {
         let mut y = 2;
         for cs in controls {
             for (key, text) in cs {
-                let mut pos = ScreenPos {
+                let pos = ScreenPos {
                     x: sidebar_x + 2,
                     y: y,
                 };
-
-                // Key
-                let mut texture = self.screen
-                    .render_text(key.to_string(), Color::RGB(100, 255, 100));
-                self.screen.render_in_rect(&texture,
-                                           ScreenRect::new(pos.x, pos.y, key.len() as u32, 1),
-                                           false,
-                                           true);
-
-                // Colon
-                pos.x += key.len() as u32;
-                texture = self.screen.render_text(':'.to_string(), Color::RGB(255, 255, 255));
-                self.screen.render_in_cell(&texture, pos);
-
-                // Text
-                pos.x += 2;
-                texture = self.screen.render_text(text.to_string(), Color::RGB(255, 255, 255));
-                self.screen.render_in_rect(&texture,
-                                           ScreenRect::new(pos.x, pos.y, sidebar_width, 1),
-                                           false,
-                                           true);
+                let richtext = vec![(key.to_string(), Color::RGB(100, 255, 100)),
+                                    (" : ".to_string(), Color::RGB(255, 255, 255)),
+                                    (text.to_string(), Color::RGB(255, 255, 255))];
+                self.screen.render_text(richtext, None, pos);
                 y += 1;
             }
             y += 1;
@@ -765,10 +749,37 @@ impl Screen {
         }
     }
 
-    fn render_text(&mut self, text: String, color: Color) -> Texture {
+    // ******************** TEXT ********************
+
+    /// Render rich text starting in the given cell.
+    fn render_text(&mut self,
+                   richtext: Vec<(String, Color)>,
+                   background: Option<Color>,
+                   screenpos: ScreenPos) {
+        if let Some(bg) = background {
+            let mut total_length = 0;
+            for &(ref s, _) in &richtext {
+                total_length += s.len();
+            }
+            let srect = ScreenRect::new(screenpos.x, screenpos.y, total_length as u32, 1);
+            self.fill_rect(srect, bg);
+        }
+
+        let mut srect = ScreenRect::new(screenpos.x, screenpos.y, 0, 1);
+        for &(ref s, c) in &richtext {
+            let texture = self.render_string(s, c);
+            srect.width = s.len() as u32;
+            self.render_in_rect(&texture, srect, false, true);
+            srect.top_left.x += srect.width;
+        }
+    }
+
+    /// Render a plain string into a `Texture`.
+    fn render_string(&mut self, text: &String, color: Color) -> Texture {
         self.render_bytes(text.as_bytes(), color)
     }
 
+    /// Render some bytes with the bitmap font into a `Texture`.
     fn render_bytes(&mut self, bytes: &[u8], color: Color) -> Texture {
         if let Some(ref mut renderer) = self.renderer {
             let mut texture = renderer.create_texture_target(PixelFormatEnum::ARGB8888,
