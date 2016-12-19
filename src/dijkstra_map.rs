@@ -147,8 +147,13 @@ impl Map {
 
     /// Remove a source from the map.
     pub fn remove_source(&mut self, source: Point, world: &World) {
-        self.sources.retain(|s| *s != source);
+        self.remove_source_no_rebuild(source);
         self.rebuild_from_sources(world);
+    }
+
+    /// Remove source from the map without rebuilding.
+    pub fn remove_source_no_rebuild(&mut self, source: Point) {
+        self.sources.retain(|s| *s != source);
     }
 
     /// Recompute the map. This should be called when new obstructions are added.
