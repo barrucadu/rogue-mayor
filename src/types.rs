@@ -4,6 +4,7 @@
 use dijkstra_map::*;
 use grid::*;
 use statics::*;
+use std::collections::BTreeMap;
 use std::collections::VecDeque;
 use templates::*;
 
@@ -28,6 +29,8 @@ pub enum Command {
 pub struct World {
     /// Things which have a fixed presence and location in the world.
     pub statics: Grid<Option<Static>>,
+    /// Heatmap sources.
+    pub sources: BTreeMap<Point, MapTag>,
     /// Message log.
     pub messages: VecDeque<Message>,
     /// Selected cell.
@@ -41,6 +44,7 @@ impl World {
     pub fn new() -> World {
         World {
             statics: Grid::new(None),
+            sources: BTreeMap::new(),
             messages: VecDeque::new(),
             cursor: Point { x: 0, y: 0 },
             template: None,
@@ -61,9 +65,14 @@ impl World {
             for (p, &(s, t)) in &tpl.components {
                 let pos = p.offset(self.cursor);
                 self.statics.set(pos, Some(s));
+                if let Some(old_tag) = self.sources.get(&pos) {
+                    maps.mutget(*old_tag).remove_source_no_rebuild(pos);
+                }
+                let _ = self.sources.remove(&pos);
                 if let Some(tag) = t {
                     // Rebuild the maps at the end.
                     maps.mutget(tag).add_source_no_rebuild(pos);
+                    let _ = self.sources.insert(pos, tag);
                 }
             }
             maps.rebuild_all(self);

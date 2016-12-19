@@ -35,8 +35,10 @@ fn main() {
             });
 
             // Testing stuff
-            world.statics.set(Point { x: 25, y: 25 }, Some(Static::Dungeon));
-            maps.mutget(MapTag::Adventure).add_source(Point { x: 25, y: 25 }, &world);
+            let pos = Point { x: 25, y: 25 };
+            world.statics.set(pos, Some(Static::Dungeon));
+            maps.mutget(MapTag::Adventure).add_source(pos, &world);
+            world.sources.insert(pos, MapTag::Adventure);
 
             // Game loop
             'game: loop {
