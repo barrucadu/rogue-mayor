@@ -31,7 +31,7 @@ pub fn signed_add(u: usize, s: i8) -> usize {
 
 /// Check if a position is occupied.
 pub fn is_occupied(pos: Point, mobs: &BTreeMap<Point, Mobile>, world: &World) -> bool {
-    mobs.get(&pos).is_some() || world.statics.at(pos).map_or(false, |s| s.impassable())
+    mobs.get(&pos).is_some() || world.statics.at(pos).map_or(false, |s| s.is_impassable)
 }
 
 /// Check if a tile can be seen from another.
@@ -70,7 +70,7 @@ pub fn can_see(start: Point, end: Point, world: &World) -> bool {
         err += err_inc;
         pos.x = signed_add(pos.x, inc_x);
         pos.y = signed_add(pos.y, inc_y);
-        if world.statics.at(pos).map_or(false, |s| s.opaque()) {
+        if world.statics.at(pos).map_or(false, |s| s.is_opaque) {
             return false;
         }
     }

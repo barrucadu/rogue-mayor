@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 
 // `from_grid` helper.
 macro_rules! s{
-    ($s:ident) => (Some(Static::$s))
+    ($s:ident) => (Some(StaticTag::$s))
 }
 
 /// The available templates
@@ -121,12 +121,13 @@ impl Template {
 }
 
 /// Construct components from a grid. TODO: make this a macro.
-fn from_grid(grid: &[Vec<Option<Static>>]) -> Template {
+fn from_grid(grid: &[Vec<Option<StaticTag>>]) -> Template {
     let mut components = BTreeMap::new();
 
     for y in 0..grid.len() {
         for x in 0..grid[y].len() {
-            if let Some(s) = grid[y][x] {
+            if let Some(stag) = grid[y][x] {
+                let s = Static::new(stag);
                 let _ = components.insert(Point { x: x, y: y }, (s, s.maptag()));
             }
         }

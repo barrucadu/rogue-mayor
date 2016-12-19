@@ -938,13 +938,13 @@ impl Visual for Mobile {
 
 impl Visual for Static {
     fn visual(&self) -> (u8, Color, Option<Color>) {
-        match *self {
-            Static::GStoreCounter => (210, Color::RGB(133, 94, 66), None),
-            Static::InnCounter => (210, Color::RGB(133, 94, 66), None),
-            Static::Dungeon => (234, Color::RGB(129, 26, 26), Some(Color::RGB(66, 66, 111))),
-            Static::Bed => (233, Color::RGB(166, 128, 100), None),
-            Static::Wall => ('#' as u8, Color::RGB(0, 0, 0), Some(Color::RGB(133, 94, 66))),
-            Static::Door => (186, Color::RGB(0, 0, 0), Some(Color::RGB(133, 94, 66))),
+        match self.tag {
+            StaticTag::GStoreCounter => (210, Color::RGB(133, 94, 66), None),
+            StaticTag::InnCounter => (210, Color::RGB(133, 94, 66), None),
+            StaticTag::Dungeon => (234, Color::RGB(129, 26, 26), Some(Color::RGB(66, 66, 111))),
+            StaticTag::Bed => (233, Color::RGB(166, 128, 100), None),
+            StaticTag::Wall => ('#' as u8, Color::RGB(0, 0, 0), Some(Color::RGB(133, 94, 66))),
+            StaticTag::Door => (186, Color::RGB(0, 0, 0), Some(Color::RGB(133, 94, 66))),
         }
     }
 }

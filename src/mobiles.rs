@@ -4,7 +4,6 @@
 use constants::*;
 use dijkstra_map::*;
 use grid::*;
-use statics::*;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::f64;
@@ -123,12 +122,10 @@ impl Mobile {
                          _: &mut BTreeMap<Point, Mobile>,
                          _: &mut Maps,
                          world: &mut World) {
-        match world.statics.at(pos) {
-            Some(Static::Bed) => self.satisfy_desire(MapTag::Rest, 1.0),
-            Some(Static::Dungeon) => self.satisfy_desire(MapTag::Adventure, 1.0),
-            Some(Static::GStoreCounter) => self.satisfy_desire(MapTag::GeneralStore, 1.0),
-            Some(Static::InnCounter) => self.satisfy_desire(MapTag::Sustenance, 1.0),
-            _ => {}
+        if let Some(s) = world.statics.at(pos) {
+            if let Some(tag) = s.maptag() {
+                self.satisfy_desire(tag, 1.0);
+            }
         }
     }
 
