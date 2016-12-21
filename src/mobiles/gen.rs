@@ -193,8 +193,8 @@ impl Mobile {
                 self.profession_apothecarist += 5;
             }
             &TrainingPackage::Appraiser => {
-                self.lore += 30;
                 self.bargain += 10;
+                self.lore += 30;
                 self.profession_appraiser += 5;
             }
             &TrainingPackage::Cutter => {
@@ -275,6 +275,39 @@ impl Mobile {
                 self.hunt += 5;
                 self.forage += 10;
             }
+
+            // Youth (1 and 2 year)
+            &TrainingPackage::Assistant => {
+                self.bargain += 5;
+                self.charm += 5;
+                self.craft += 5;
+                self.empathy += 5;
+                self.guile += 5;
+                self.lore += 5;
+            }
+            &TrainingPackage::Farmhand => {
+                self.endurance += 5;
+                self.strength += 5;
+                self.animal += 20;
+            }
+            &TrainingPackage::Gatherer => {
+                self.constitution += 5;
+                self.endurance += 5;
+                self.heal += 5;
+                self.hunt += 5;
+                self.forage += 10;
+            }
+            &TrainingPackage::RecklessAbandon => {
+                self.agility += 2;
+                self.constitution += 1;
+                self.endurance += 1;
+                self.toughness += 1;
+                self.charm += 3;
+                self.craft += 1;
+                self.empathy += 3;
+                self.forage += 1;
+                self.guile += 2;
+            }
         }
     }
 }
@@ -282,7 +315,7 @@ impl Mobile {
 /// Generate a mobile of the given age.
 fn gen<R: Rng>(rng: &mut R, age: usize, is_adventurer: bool) -> Mobile {
     if age < MIN_AGE {
-        panic!("Attempted to create a mob younger han {}!", MIN_AGE);
+        panic!("Attempted to create a mob younger than {}!", MIN_AGE);
     }
 
     // We start off with a blank slate. This is an entirely nurture-based model of personality,
@@ -348,26 +381,44 @@ fn gen<R: Rng>(rng: &mut R, age: usize, is_adventurer: bool) -> Mobile {
 
     // Then, determine the age at which the mob became an adventurer. Let's say that any point after
     // MIN_ONSET is fair game.
-    let (pre_years, post_years) = if is_adventurer && age > MIN_ONSET {
+    let (youth_years, pre_years, post_years) = if is_adventurer && age > MIN_ONSET {
         let onset = rng.gen_range(MIN_ONSET, age);
         mob.onset_age = Some(onset);
-        (onset, age - onset)
-    } else {
+        (ADULT_AGE - MIN_AGE, onset - ADULT_AGE, age - onset)
+    } else if age > ADULT_AGE {
         // Of course, if they're not an adventurer, or are a freshly-minted adventurer (this is
         // their first quest!), they get no years of adventurer experience.
-        (age, 0)
+        (ADULT_AGE - MIN_AGE, age - ADULT_AGE, 0)
+    } else {
+        (age - MIN_AGE, 0, 0)
     };
 
-    // Now pick and apply training packages. We go in the order childhood (which always lasts
-    // MIN_AGE years), pre-onset years, then post-onset years.
+    // Now pick and apply training packages. Everyone gets a childhood and some youth
+    // packages. Adults then get pre-onset packages. Adventurers then get post-onset packages.
     mob.train_childhood(rng.choose(&CHILDHOOD).unwrap());
-    random_train(rng, &mut mob, pre_years - MIN_AGE, &PRE_ONSET);
+    let finalp = random_train(rng, &mut mob, youth_years, &YOUTH, None);
 
-    // All adventurers start with 5 experience in the adventurer profession.
+    if age > ADULT_AGE {
+        // The final youth training package is used to influence the selection of the initial adult
+        // training package, as the youth packages are broader and more generic versions of the
+        // adult packages.
+        let _ = random_train(rng, &mut mob, pre_years, &PRE_ONSET, finalp);
+    }
+
+    // All adventurers start with 5 experience in the adventurer profession. The final pre-onset
+    // training package is *not* passed in here, as becoming an adventurer is a complete change of
+    // lifestyle, so there's no reason for the prior job to influence what happens next.
     if is_adventurer {
         mob.profession_adventurer = 5;
         mob.history.push((mob.age, LifeEvent::Onset));
-        random_train(rng, &mut mob, post_years, &POST_ONSET);
+        let _ = random_train(rng, &mut mob, post_years, &POST_ONSET, None);
+    }
+
+    // Sanity check.
+    if mob.age != age {
+        panic!("Incorrectly applied training packages! Expected age: {}, actual: {}.",
+               age,
+               mob.age);
     }
 
     mob
@@ -375,52 +426,25 @@ fn gen<R: Rng>(rng: &mut R, age: usize, is_adventurer: bool) -> Mobile {
 
 /// Randomly train a mob for a number of years.
 ///
-/// This panics if there are no applicable training packages.
+/// Returns the final training package applied. If the result is `None`, then this was called with
+/// `years=0`;.
 fn random_train<R: Rng>(rng: &mut R,
                         mob: &mut Mobile,
                         years: usize,
-                        packages: &[TrainingPackage]) {
-    // Choose the initial training package.
-    let initial = {
-        let mut applicable = 0;
-        for package in packages {
-            if package.applicable(mob) && package.years() <= years {
-                applicable += 1;
-            }
-        }
+                        packages: &[TrainingPackage],
+                        prior: Option<TrainingPackage>)
+                        -> Option<TrainingPackage> {
+    let mut prior = prior;
+    let mut remaining = years;
 
-        if applicable == 0 {
-            panic!("No applicable initial training package!");
-        }
-
-        let mut idx = rng.gen_range(0, applicable);
-
-        let mut found = None;
-        for package in packages {
-            if package.applicable(mob) && package.years() <= years {
-                idx -= 1;
-                if idx == 0 {
-                    found = Some(*package);
-                    break;
-                }
-            }
-        }
-
-        found.expect("Failed to select initial training package!")
-    };
-
-    // Train the mob.
-    mob.train(&initial);
-
-    // Then train for the remaining years.
-    let mut prior = initial;
-    let mut remaining = years - initial.years();
     while remaining > 0 {
         let package = choose_package(rng, mob, remaining, packages, prior);
         mob.train(&package);
         remaining -= package.years();
-        prior = package;
+        prior = Some(package);
     }
+
+    if years == 0 { None } else { prior }
 }
 
 /// Pick a training package applicable to a mob. This is biassed towards one related to the prior,
@@ -431,7 +455,7 @@ fn choose_package<R: Rng>(rng: &mut R,
                           mob: &Mobile,
                           max_years: usize,
                           packages: &[TrainingPackage],
-                          prior: TrainingPackage)
+                          prior: Option<TrainingPackage>)
                           -> TrainingPackage {
     // Determine how many packages are applicable and how many are related to the prior package.
     let mut applicable = 0;
@@ -439,30 +463,42 @@ fn choose_package<R: Rng>(rng: &mut R,
     for package in packages {
         if package.applicable(mob) && package.years() <= max_years {
             applicable += 1;
-            if prior.related(package) {
-                related += 1;
+            if let Some(tp) = prior {
+                if tp.related(package) {
+                    related += 1;
+                }
             }
         }
+    }
+
+    if applicable == 0 {
+        panic!("No applicable training packages! (max_years={}) (packages={:?})",
+               max_years,
+               packages);
     }
 
     // Determine what sort of package to pick: any applicable one (class 0); or any related one
     // (class 1). These classes are chosen between with equal probability. Then a package in the
     // selected class is picked uniformly. As each package is only related to a couple of others,
     // this has the effect of biassing towards related packages.
-    let class = if related != 0 { rng.gen_range(0, 2) } else { 0 };
+    let class = if related == 0 { 0 } else { rng.gen_range(0, 2) };
 
     // Pick a package in the chosen set.
     let num_options = if class == 0 { applicable } else { related };
-    let mut idx = rng.gen_range(0, num_options);
+    let mut idx = rng.gen_range(0, num_options) as usize;
 
     // Return the chosen package.
     for package in packages {
         if package.applicable(mob) && package.years() <= max_years {
-            if class == 0 || prior.related(package) {
-                if idx == 0 {
-                    return *package;
+            if class == 0 {
+                idx = idx.saturating_sub(1);
+            } else if let Some(tp) = prior {
+                if tp.related(package) {
+                    idx = idx.saturating_sub(1);
                 }
-                idx -= 1;
+            }
+            if idx == 0 {
+                return *package;
             }
         }
     }
@@ -472,6 +508,12 @@ fn choose_package<R: Rng>(rng: &mut R,
 
 /// Childhood training packages.
 const CHILDHOOD: [Childhood; 3] = [Childhood::Athletic, Childhood::Mischievous, Childhood::Outdoor];
+
+/// Youth training packages.
+const YOUTH: [TrainingPackage; 4] = [TrainingPackage::Assistant,
+                                     TrainingPackage::Farmhand,
+                                     TrainingPackage::Gatherer,
+                                     TrainingPackage::RecklessAbandon];
 
 /// Pre-onset training packages.
 const PRE_ONSET: [TrainingPackage; 17] = [TrainingPackage::AnimalHandler,
@@ -532,9 +574,12 @@ pub enum Childhood {
 /// 2. Profession (3 year): only the animal handler, apothecarist, appraiser, tinker, trader, and
 ///    woodsman are available to post-onset adventurers.
 ///
-/// 3. Personality (1 year): only available to those with the appropriate personality trait.
+/// 3. Personality (1 year): only available to those adults with the appropriate personality trait.
 ///
-/// 4. Miscellaneous (1 year): available to all.
+/// 4. Miscellaneous Adult (1 year): available to all adults.
+///
+/// 5. Youth (1 and 2 year): more generic of the profession packages, available to all younger than
+///    adults.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum TrainingPackage {
     // adventurer
@@ -564,13 +609,19 @@ pub enum TrainingPackage {
     // personality
     Negotiation,
 
-    // miscellaneous
+    // miscellaneous adult
     Athlete,
     Brawler,
     Charmer,
     Conman,
     Footpad,
     Forager,
+
+    // youth
+    Assistant,
+    Farmhand,
+    Gatherer,
+    RecklessAbandon,
 }
 
 impl TrainingPackage {
@@ -605,13 +656,19 @@ impl TrainingPackage {
             // personality
             &TrainingPackage::Negotiation => 1,
 
-            // miscellaneous
+            // miscellaneous adult
             &TrainingPackage::Athlete |
             &TrainingPackage::Brawler |
             &TrainingPackage::Charmer |
             &TrainingPackage::Conman |
             &TrainingPackage::Footpad |
             &TrainingPackage::Forager => 1,
+
+            // youth
+            &TrainingPackage::Assistant |
+            &TrainingPackage::Farmhand |
+            &TrainingPackage::Gatherer => 2,
+            &TrainingPackage::RecklessAbandon => 1,
         }
     }
 
@@ -623,7 +680,9 @@ impl TrainingPackage {
 
     /// Whether the given mob is capable of using this training package.
     pub fn applicable(&self, mob: &Mobile) -> bool {
-        // Only the personality training packages are conditional.
+        // Only the personality training packages are conditional. The life stage conditions are
+        // imposed by the different sets of package: `CHILDHOOD`, `YOUTH`, `PRE_ONSET`, and
+        // `POST_ONSET`.
         match self {
             &TrainingPackage::Negotiation => mob.is_avaricious || mob.is_envious,
             _ => true,
@@ -656,18 +715,26 @@ fn related_non_refsym(a: &TrainingPackage, b: &TrainingPackage) -> bool {
 
         // profession
         (&TrainingPackage::AnimalHandler, &TrainingPackage::Farmer) => true,
+        (&TrainingPackage::AnimalHandler, &TrainingPackage::Farmhand) => true,
         (&TrainingPackage::Apothecarist, &TrainingPackage::Cutter) => true,
+        (&TrainingPackage::Appraiser, &TrainingPackage::Assistant) => true,
         (&TrainingPackage::Appraiser, &TrainingPackage::Tinker) => true,
         (&TrainingPackage::Appraiser, &TrainingPackage::Trader) => true,
+        (&TrainingPackage::Farmer, &TrainingPackage::Farmhand) => true,
+        (&TrainingPackage::Innkeeper, &TrainingPackage::Assistant) => true,
+        (&TrainingPackage::Tinker, &TrainingPackage::Assistant) => true,
         (&TrainingPackage::Tinker, &TrainingPackage::Trader) => true,
+        (&TrainingPackage::Trader, &TrainingPackage::Assistant) => true,
         (&TrainingPackage::Trader, &TrainingPackage::Charmer) => true,
         (&TrainingPackage::Trader, &TrainingPackage::Conman) => true,
         (&TrainingPackage::Woodsman, &TrainingPackage::Forager) => true,
+        (&TrainingPackage::Woodsman, &TrainingPackage::Gatherer) => true,
 
-        // miscellaneous
+        // miscellaneous adult
         (&TrainingPackage::Athlete, &TrainingPackage::Brawler) => true,
         (&TrainingPackage::Charmer, &TrainingPackage::Conman) => true,
         (&TrainingPackage::Conman, &TrainingPackage::Footpad) => true,
+        (&TrainingPackage::Forager, &TrainingPackage::Gatherer) => true,
 
         // catch_all
         (_, _) => false,
