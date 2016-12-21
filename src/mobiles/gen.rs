@@ -373,11 +373,11 @@ fn gen<R: Rng>(rng: &mut R, age: usize, is_adventurer: bool) -> Mobile {
     // Assign personality traits randomly. Let's say that 75% of the population are not particularly
     // avaricious/brave/whatnot, and the remaining 25% are. The exception is that all adventurers
     // are brave.
-    mob.is_avaricious = rng.gen_range(0, 5) == 0;
-    mob.is_brave = is_adventurer || rng.gen_range(0, 5) == 0;
-    mob.is_envious = rng.gen_range(0, 5) == 0;
-    mob.is_gluttonous = rng.gen_range(0, 5) == 0;
-    mob.is_slothful = rng.gen_range(0, 5) == 0;
+    mob.is_avaricious = rng.gen_range(0, 4) == 0;
+    mob.is_brave = is_adventurer || rng.gen_range(0, 4) == 0;
+    mob.is_envious = rng.gen_range(0, 4) == 0;
+    mob.is_gluttonous = rng.gen_range(0, 4) == 0;
+    mob.is_slothful = rng.gen_range(0, 4) == 0;
 
     // Then, determine the age at which the mob became an adventurer. Let's say that any point after
     // MIN_ONSET is fair game.
