@@ -10,6 +10,7 @@ extern crate sdl2;
 pub mod constants;
 pub mod dijkstra_map;
 pub mod grid;
+pub mod language;
 pub mod mobiles;
 pub mod statics;
 pub mod templates;
