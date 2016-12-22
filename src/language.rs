@@ -8,6 +8,9 @@ use std::collections::BTreeMap;
 /// The number of "extra" morphemes to consider when picking one.
 const EXTRA_MORPHEMES: usize = 10;
 
+/// The maximum character length of a given name.
+const MAX_GIVEN_LEN: usize = 12;
+
 /// A language is a collection of morphemes, and rules for generating more morphemes.
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct Language {
@@ -279,23 +282,31 @@ impl Language {
     pub fn gen_personal<R: Rng>(&mut self, rng: &mut R) -> String {
         // Given name
         let mut given = "".to_string();
-        let glen = rng.gen_range(self.per_given.0, self.per_given.1 + 1);
-        let nidx = rng.gen_range(0, glen);
-        for i in 0..glen {
-            let (morph, new) = self.pick_morpheme(rng,
-                                                  if i == nidx {
-                                                      &self.name_morphemes
-                                                  } else {
-                                                      &self.generic_morphemes
-                                                  });
-            if new {
-                if i == nidx {
-                    self.name_morphemes.push(morph.clone());
-                } else {
-                    self.generic_morphemes.push(morph.clone());
+        loop {
+            given = "".to_string();
+            let glen = rng.gen_range(self.per_given.0, self.per_given.1 + 1);
+            let nidx = rng.gen_range(0, glen);
+            for i in 0..glen {
+                let (morph, new) = self.pick_morpheme(rng,
+                                                      if i == nidx {
+                                                          &self.name_morphemes
+                                                      } else {
+                                                          &self.generic_morphemes
+                                                      });
+                if new {
+                    if i == nidx {
+                        self.name_morphemes.push(morph.clone());
+                    } else {
+                        self.generic_morphemes.push(morph.clone());
+                    }
                 }
+                given += morph.as_str();
             }
-            given += morph.as_str();
+
+            // Check the length limit
+            if given.len() <= MAX_GIVEN_LEN {
+                break;
+            }
         }
         given = capitalise_first(given);
 
