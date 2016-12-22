@@ -11,6 +11,7 @@
 //! a soldier for 5 years, then a scholar for 3, then a farmer for 7 (well, they *could*, but it'd
 //! be weird).
 
+use language::Language;
 use mobiles::{LifeEvent, Mobile};
 use rand::Rng;
 use rand::distributions::{ChiSquared, IndependentSample, Normal};
@@ -28,34 +29,34 @@ const MIN_ONSET: usize = 20;
 
 impl Mobile {
     /// Generate an adventurer.
-    pub fn gen_adventurer<R: Rng>(rng: &mut R) -> Mobile {
+    pub fn gen_adventurer<R: Rng>(rng: &mut R, lang: &mut Language) -> Mobile {
         // Adventurers *tend* to be young. So use MIN_ONSET + a chi-squared(10) distribution. This
         // will give a typical age of ~(MIN_ONSET + 7), but there'll still be some older guys. For
         // in-world motivation, adventurers tend to be young because they (a) need to be physically
         // fit; and (b) tend to die.
         let chi = ChiSquared::new(10.0);
         let age = (chi.ind_sample(rng) + MIN_ONSET as f64).round() as usize;
-        gen(rng, age, true)
+        gen(rng, age, lang, true)
     }
 
     /// Generate a child.
-    pub fn gen_child<R: Rng>(rng: &mut R) -> Mobile {
+    pub fn gen_child<R: Rng>(rng: &mut R, lang: &mut Language) -> Mobile {
         // Children are by necessity young, but far younger than an adventurer. I could skew this
         // distribution by thinking about childhood mortality, but that seems a bit dark. So let's
         // just have a uniform selection and say that childhood ends at ADULT_AGE. The minimum age
         // is MIN_AGE, as that is the length of the early childhood training packages.
         let age = rng.gen_range(MIN_AGE, ADULT_AGE);
-        gen(rng, age, false)
+        gen(rng, age, lang, false)
     }
 
     /// Generate an adult.
-    pub fn gen_adult<R: Rng>(rng: &mut R) -> Mobile {
+    pub fn gen_adult<R: Rng>(rng: &mut R, lang: &mut Language) -> Mobile {
         // Being a non-adventurer is safer than being an adventurer, so we don't get the same
         // tail-off in age as with adventurers. Some adults are old, some adults are young, some are
         // middle-aged; so let's go for a normal distribution!
         let ufm = Normal::new(30.0, 5.0);
         let age = ufm.ind_sample(rng).round() as usize;
-        gen(rng, cmp::max(age, ADULT_AGE), false)
+        gen(rng, cmp::max(age, ADULT_AGE), lang, false)
     }
 
     /// Apply a childhood to the mob.
@@ -313,7 +314,7 @@ impl Mobile {
 }
 
 /// Generate a mobile of the given age.
-fn gen<R: Rng>(rng: &mut R, age: usize, is_adventurer: bool) -> Mobile {
+fn gen<R: Rng>(rng: &mut R, age: usize, lang: &mut Language, is_adventurer: bool) -> Mobile {
     if age < MIN_AGE {
         panic!("Attempted to create a mob younger than {}!", MIN_AGE);
     }
@@ -321,7 +322,7 @@ fn gen<R: Rng>(rng: &mut R, age: usize, is_adventurer: bool) -> Mobile {
     // We start off with a blank slate. This is an entirely nurture-based model of personality,
     // Mother Nature and Daddy Darwin have no part in this!
     let mut mob = Mobile {
-        name: "kaffo".to_string(),
+        name: lang.gen_personal(rng),
         age: 0,
         onset_age: None,
         history: vec![(0, LifeEvent::Born)],
