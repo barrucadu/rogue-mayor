@@ -229,7 +229,7 @@ impl Language {
         }
 
         // Structure
-        l.syllable_structure = match rng.gen_range(0, 21) {
+        l.syllable_structure = match rng.gen_range(0, 22) {
             0 => vec![(L::C, true), (L::V, true), (L::C, true)],
             1 => vec![(L::C, true), (L::V, true), (L::V, false), (L::C, true)],
             2 => vec![(L::C, true), (L::V, true), (L::V, true), (L::C, false)],
@@ -244,12 +244,13 @@ impl Language {
             11 => vec![(L::S, false), (L::C, true), (L::V, true), (L::C, true)],
             12 => vec![(L::S, false), (L::C, true), (L::V, true), (L::F, true)],
             13 => vec![(L::S, false), (L::C, true), (L::V, true), (L::C, false)],
-            14 => vec![(L::C, false), (L::V, true), (L::F, true)],
-            15 => vec![(L::C, false), (L::V, true), (L::C, false)],
-            16 => vec![(L::C, false), (L::V, true), (L::F, false)],
-            17 => vec![(L::C, false), (L::L, false), (L::V, true), (L::C, true)],
-            18 => vec![(L::C, true), (L::V, true), (L::L, false), (L::C, false)],
-            19 => vec![(L::C, false), (L::V, true), (L::L, false), (L::C, true)],
+            15 => vec![(L::C, false), (L::V, true), (L::F, true)],
+            16 => vec![(L::C, false), (L::V, true), (L::C, false)],
+            17 => vec![(L::C, false), (L::V, true), (L::F, false)],
+            18 => vec![(L::C, false), (L::L, false), (L::V, true), (L::C, true)],
+            19 => vec![(L::C, true), (L::V, true), (L::L, false), (L::C, false)],
+            20 => vec![(L::C, false), (L::V, true), (L::L, false), (L::C, true)],
+            21 => vec![(L::C, true), (L::V, true), (L::S, false), (L::V, true)],
             _ => vec![(L::C, false), (L::V, true), (L::L, true), (L::C, false)],
         };
 
