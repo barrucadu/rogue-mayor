@@ -44,10 +44,10 @@ impl Maps {
     /// Construct empty maps.
     pub fn new() -> Maps {
         Maps {
-            adventure: Map::new(),
-            general_store: Map::new(),
-            rest: Map::new(),
-            sustenance: Map::new(),
+            adventure: Map::empty(),
+            general_store: Map::empty(),
+            rest: Map::empty(),
+            sustenance: Map::empty(),
         }
     }
 
@@ -119,13 +119,23 @@ impl Debug for Map {
 
 impl Map {
     /// A new empty map.
-    fn new() -> Map {
+    pub fn empty() -> Map {
         Map {
             sources: Vec::new(),
             approach: Grid::new(f64::MAX),
             flee_cowardly: Grid::new(f64::MAX),
             flee_bravely: Grid::new(f64::MAX),
         }
+    }
+
+    /// A new map from a collection of sources.
+    pub fn new(sources: Vec<Point>, world: &World) -> Map {
+        let mut map = Map::empty();
+        for source in sources {
+            map.add_source_no_rebuild(source);
+        }
+        map.rebuild_from_sources(&world);
+        map
     }
 
     /// Add a new source to the map.
@@ -178,6 +188,32 @@ impl Map {
 
         // Compute the fleeing maps and find their global minima.
         self.recompute_flee(world);
+    }
+
+    /// Get the next point to move to from the given one. Returns
+    /// `None` if the source isn't reachable.
+    pub fn get_new_pos(&self, pos: Point) -> Option<Point> {
+        let mut new_pos = None;
+        let mut min_so_far = f64::MAX;
+        for dy in inclusive_range(-1, 1) {
+            if (dy < 0 && pos.y == 0) || (dy > 0 && pos.y == HEIGHT - 1) {
+                continue;
+            }
+            let y = signed_add(pos.y, dy);
+            for dx in inclusive_range(-1, 1) {
+                if (dx < 0 && pos.x == 0) || (dx > 0 && pos.x == WIDTH - 1) {
+                    continue;
+                }
+                let x = signed_add(pos.x, dx);
+
+                let weight = self.approach.at(Point { x: x, y: y });
+                if weight < min_so_far {
+                    new_pos = Some(Point { x: x, y: y });
+                }
+            }
+        }
+
+        new_pos
     }
 
     /// Recompute the fleeing maps. Not publically exported as it's called appropriately by other

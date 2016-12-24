@@ -11,6 +11,7 @@
 //! a soldier for 5 years, then a scholar for 3, then a farmer for 7 (well, they *could*, but it'd
 //! be weird).
 
+use grid::Point;
 use language::Language;
 use mobiles::{LifeEvent, Mobile};
 use rand::Rng;
@@ -331,7 +332,9 @@ fn gen<R: Rng>(rng: &mut R, age: usize, lang: &mut Language, is_adventurer: bool
         is_envious: false,
         is_gluttonous: false,
         is_slothful: false,
+        priority_task: None,
         desires: BTreeMap::new(),
+        home_pos: Point { x: 0, y: 0 },
         agility: 0,
         constitution: 0,
         endurance: 0,
